@@ -56,7 +56,7 @@ func (m *model) draw() error {
 		fmt.Fprintf(&bar, " %d%s:%s ", i+1, star, filepath.Base(t.Document.Path))
 	}
 	if bar.Len() == 0 {
-		bar.WriteString(" pdfreader")
+		bar.WriteString(" pdfr")
 	}
 	m.line(0, bar.String())
 	next := drawnFrame{size: m.size}

@@ -37,7 +37,7 @@ func loadRecent() (string, []string) {
 	if base == "" {
 		return "", nil
 	}
-	path := filepath.Join(base, "pdfreader", "recent")
+	path := filepath.Join(base, "pdfr", "recent")
 	f, err := os.Open(path)
 	if err != nil {
 		return path, nil
