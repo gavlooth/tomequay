@@ -1,4 +1,4 @@
-// Package pdf reads PDF metadata, images, and text with the Poppler CLI tools.
+// Package pdf reads PDF metadata, images, and text with Poppler, and outlines with qpdf.
 package pdf
 
 import (
@@ -26,9 +26,10 @@ var (
 // Tools can be shared between goroutines; each call starts its own processes.
 type Tools struct {
 	pdfinfo, pdftoppm, pdftotext string
+	qpdf                         string
 }
 
-// FindTools locates all three required Poppler executables on PATH.
+// FindTools locates the required Poppler executables and optional qpdf on PATH.
 func FindTools() (Tools, error) {
 	var t Tools
 	var missing []string
@@ -43,6 +44,7 @@ func FindTools() (Tools, error) {
 		}
 		*tool.path = path
 	}
+	t.qpdf, _ = exec.LookPath("qpdf")
 	if len(missing) != 0 {
 		return Tools{}, fmt.Errorf("missing Poppler tools: %s; install poppler (Arch: pacman -S poppler; Debian/Ubuntu: apt install poppler-utils)", strings.Join(missing, ", "))
 	}

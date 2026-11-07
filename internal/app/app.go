@@ -95,6 +95,9 @@ func Run(ctx context.Context, opts Options) (err error) {
 			case result := <-m.searchResults:
 				m.acceptSearch(result)
 				redraw = true
+			case result := <-m.outlineResults:
+				m.acceptOutline(result)
+				redraw = true
 			case now := <-uploadDeadline:
 				m.uploadExpired(now)
 				redraw = true

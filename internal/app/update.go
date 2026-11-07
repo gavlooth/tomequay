@@ -51,6 +51,10 @@ func (m *model) key(k keys.Key) {
 		m.pickerKey(k)
 		return
 	}
+	if m.outline != nil {
+		m.outlineKey(k)
+		return
+	}
 	cmd, ok := m.decoder.Feed(k)
 	if ok {
 		m.command(cmd)
@@ -89,7 +93,7 @@ func (m *model) command(cmd keys.Command) {
 		m.helpOffset = 0
 		return
 	case keys.Outline:
-		m.message = "outline unavailable: Poppler's pdfinfo/pdftotext backend does not expose PDF bookmarks"
+		m.showOutline()
 		return
 	}
 	t, ok := m.tabs.Active()

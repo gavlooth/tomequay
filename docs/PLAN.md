@@ -82,7 +82,7 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `m{a-z}`, `'{a-z}`, `''` | Set mark, jump to mark, jump back to the previous position |
 | `Ctrl-o` / `Ctrl-i` | Older / newer position in the jump list |
 | `r` | Reload the file |
-| `gO` (`:outline`) | Outline (table of contents) navigation, if the PDF has one |
+| `gO` (`:outline`) | Outline navigation through qpdf, if the PDF has one; `j/k` selects, `Enter` jumps, `/` filters titles, `Esc` closes |
 | `:{N}`, `:tabnew`, `:tabclose` | Go to page N, new tab, close tab |
 | `F1`, `:help` | Key help |
 
@@ -92,7 +92,7 @@ Keys are decoded into named actions in one table, so the status line, `:help`, a
 
 1. **Display proof:** verify Poppler rendering and Überzug++ placement, cleanup, pane switching, and resize behavior. Record results before writing the full reader.
 2. **Core reader:** Go TUI with a tab bar, file opening, tab close, duplicate-current-tab, next/previous tab, page navigation, fit-page/fit-width, zoom, and independent view state. A duplicate starts at the current view and then navigates independently.
-3. **Reading tools:** text search with page results, outline navigation if available from the selected PDF backend, recent files, and live reload when a PDF changes.
+3. **Reading tools:** text search with page results, outline navigation through the optional qpdf CLI, recent files, and live reload when a PDF changes.
 4. **Polish:** mouse wheel, clear errors, configurable keys, cache tuning, packaging, and documentation. Verify with long text PDFs, scanned PDFs, diagrams, duplicate tabs, and 10 open documents.
 
 For the first version, annotations, PDF editing, and cross-machine image transport are outside the scope.

@@ -37,10 +37,14 @@ type images interface {
 }
 
 type document struct {
-	info     pdf.DocumentInfo
-	mtime    int64
-	password string
-	ready    bool
+	info              pdf.DocumentInfo
+	mtime             int64
+	password          string
+	ready             bool
+	outline           []pdf.OutlineEntry
+	outlineLoaded     bool
+	outlineGeneration uint64
+	outlineCancel     context.CancelFunc
 }
 
 type position struct {
@@ -107,42 +111,44 @@ type drawnFrame struct {
 }
 
 type model struct {
-	tabs          *tabs.Set
-	states        map[tabs.TabID]*tabState
-	docs          map[string]*document
-	decoder       keys.Decoder
-	tools         pdf.Tools
-	toolErr       error
-	cache         *cache.Cache
-	images        images
-	screen        screen
-	size          terminal.Size
-	message       string
-	quit, help    bool
-	helpOffset    int
-	picker        *picker
-	recent        []string
-	recentFile    string
-	password      []rune
-	passwordFor   *openAttempt
-	passwordQueue []openAttempt
-	results       chan renderResult
-	searchResults chan searchResult
-	generation    uint64
-	renderCancel  context.CancelFunc
-	workers       sync.WaitGroup
-	requested     bool
-	requestedTab  tabs.TabID
-	requestedKey  cache.Key
-	layout        pageLayout
-	currentPNG    []byte
-	currentKey    cache.Key
-	imageIDs      map[cache.Key]*imageRecord
-	nextID        uint32
-	outputErr     error
-	frame         drawnFrame
-	pendingUpload *pendingUpload
-	ctx           context.Context
+	tabs           *tabs.Set
+	states         map[tabs.TabID]*tabState
+	docs           map[string]*document
+	decoder        keys.Decoder
+	tools          pdf.Tools
+	toolErr        error
+	cache          *cache.Cache
+	images         images
+	screen         screen
+	size           terminal.Size
+	message        string
+	quit, help     bool
+	helpOffset     int
+	picker         *picker
+	outline        *outlineView
+	recent         []string
+	recentFile     string
+	password       []rune
+	passwordFor    *openAttempt
+	passwordQueue  []openAttempt
+	results        chan renderResult
+	searchResults  chan searchResult
+	outlineResults chan outlineResult
+	generation     uint64
+	renderCancel   context.CancelFunc
+	workers        sync.WaitGroup
+	requested      bool
+	requestedTab   tabs.TabID
+	requestedKey   cache.Key
+	layout         pageLayout
+	currentPNG     []byte
+	currentKey     cache.Key
+	imageIDs       map[cache.Key]*imageRecord
+	nextID         uint32
+	outputErr      error
+	frame          drawnFrame
+	pendingUpload  *pendingUpload
+	ctx            context.Context
 }
 
 func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options) *model {
@@ -155,7 +161,8 @@ func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options
 	m := &model{tabs: tabs.NewSet(), states: make(map[tabs.TabID]*tabState), docs: make(map[string]*document),
 		tools: tools, toolErr: toolErr, cache: cache.New(opts.CacheBytes),
 		screen: s, images: out, size: s.Size(), results: make(chan renderResult, 8), searchResults: make(chan searchResult, 8),
-		imageIDs: make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
+		outlineResults: make(chan outlineResult, 8),
+		imageIDs:       make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
 	m.recentFile, m.recent = loadRecent()
 	return m
 }
@@ -240,6 +247,7 @@ func (m *model) sweepImages() {
 	}
 }
 func (m *model) dropDocument(path string) {
+	m.dropOutline(path)
 	m.cache.DropPath(path)
 	for k := range m.imageIDs {
 		if k.Path == path {

@@ -45,7 +45,7 @@ func (m *model) draw() error {
 	w := m.screen.Writer()
 	var bar strings.Builder
 	active, _ := m.tabs.Active()
-	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.passwordFor == nil {
+	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.outline == nil && m.passwordFor == nil {
 		m.ensureUpload()
 	}
 	for i, t := range m.tabs.Tabs() {
@@ -66,7 +66,7 @@ func (m *model) draw() error {
 	switch {
 	case m.size.Columns < 20 || m.size.Rows < 8:
 		next.kind = smallFrame
-	case m.help || m.picker != nil:
+	case m.help || m.picker != nil || m.outline != nil:
 		next.kind = overlayFrame
 	case m.passwordFor == nil && len(m.currentPNG) > 0:
 		r := m.image(m.currentKey, m.cache.Contains(m.currentKey))
@@ -94,6 +94,8 @@ func (m *model) draw() error {
 		case overlayFrame:
 			if m.help {
 				m.drawHelp()
+			} else if m.outline != nil {
+				m.drawOutline()
 			} else {
 				m.drawPicker()
 			}
@@ -138,6 +140,13 @@ func (m *model) status() string {
 			return "/" + p.filter
 		}
 		parts = append(parts, "j/k select  Enter open  h parent  / filter  Esc close")
+	}
+	if m.outline != nil {
+		p := m.outline
+		if p.filtering {
+			return "/" + p.filter
+		}
+		parts = append(parts, "j/k select  Enter jump  / filter  Esc close")
 	}
 	if m.help {
 		parts = append(parts, "help: j/k scroll; any other key closes")

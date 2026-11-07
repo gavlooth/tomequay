@@ -68,6 +68,11 @@ func writePDF(t *testing.T, path, title string, pages []testPage, cropBoxes ...[
 			fmt.Sprintf("<< /Length %d >>\nstream\n%sendstream", len(content), content))
 	}
 	objects[1] = fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(kids, " "), len(pages))
+	writePDFObjects(t, path, objects)
+}
+
+func writePDFObjects(t *testing.T, path string, objects []string) {
+	t.Helper()
 	var data bytes.Buffer
 	data.WriteString("%PDF-1.4\n")
 	offsets := make([]int, len(objects))
