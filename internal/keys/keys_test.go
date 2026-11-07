@@ -79,7 +79,7 @@ func TestDefaultBindings(t *testing.T) {
 		{"H", ScrollToTop}, {"M", ScrollToMiddle}, {"L", ScrollToBottom},
 		{"+", ZoomIn}, {"zi", ZoomIn}, {"-", ZoomOut}, {"zo", ZoomOut},
 		{"zw", FitWidth}, {"zp", FitPage}, {"zz", FitPage}, {"z0", ResetZoom},
-		{"gt", NextTab}, {"gT", PreviousTab}, {"gd", DuplicateTab},
+		{"gt", NextTab}, {"gT", PreviousTab}, {"gd", DuplicateTab}, {"]b", NextTab}, {"[b", PreviousTab},
 		{"o", OpenFile}, {"q", CloseTab}, {"Q", QuitAll},
 		{"n", SearchNext}, {"N", SearchPrevious}, {"r", Reload}, {"gO", Outline},
 		{"gb", TabList}, {"gp", PreviousUsedTab}, {"zd", ToggleDark}, {"gs", ToggleSidebar},
@@ -299,7 +299,7 @@ func TestParseCommandLine(t *testing.T) {
 }
 
 func TestBindingSequencesAreUnambiguous(t *testing.T) {
-	prefixes := map[Key]bool{{Rune: 'g'}: true, {Rune: 'z'}: true, {Rune: 'm'}: true, {Rune: '\''}: true}
+	prefixes := map[Key]bool{{Rune: 'g'}: true, {Rune: 'z'}: true, {Rune: 'm'}: true, {Rune: '\''}: true, {Rune: ']'}: true, {Rune: '['}: true}
 	var sequences [][]Key
 	for _, b := range bindings {
 		if b.mark {

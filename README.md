@@ -9,7 +9,7 @@ go build -trimpath -ldflags="-s -w" -o ~/.local/bin/pdfr ./cmd/pdfr
 pdfr [--cache-mb 128] [--page 1] [file.pdf ...]
 ```
 
-No files opens the in-app picker. Use `j/k` to scroll, `J/K` for pages, `12G` to jump, `+/-` to zoom, `zw/zp` to fit width/page, `/query` then `n/N` to search, `gd` to duplicate, and `gt/gT` to switch tabs. `gO` or `:outline` opens the document outline: `j/k` selects, `Enter` jumps, `/` filters titles (then `Enter` finishes editing the filter), and `Esc` closes. Entries without a resolvable page are dimmed and skipped; the current page's section is selected initially. Outline jumps join the normal jump history. `Ctrl-l` forces a page re-upload/redraw. `o` opens the picker, `q` closes a tab, and `Q` quits. `F1` or `:help` shows all keys; the [key table](docs/PLAN.md#key-bindings) also documents commands, marks, and jump history.
+No files opens the in-app picker. Use `j/k` to scroll, `J/K` for pages, `12G` to jump, `+/-` to zoom, `zw/zp` to fit width/page, `/query` then `n/N` to search, `gd` to duplicate, and `]b`/`[b` (or `gt`/`gT`) to switch tabs. `gO` or `:outline` opens the document outline: `j/k` selects, `Enter` jumps, `/` filters titles (then `Enter` finishes editing the filter), and `Esc` closes. Entries without a resolvable page are dimmed and skipped; the current page's section is selected initially. Outline jumps join the normal jump history. `Ctrl-l` forces a page re-upload/redraw. `o` opens the picker, `q` closes a tab, and `Q` quits. `F1` or `:help` shows all keys; the [key table](docs/PLAN.md#key-bindings) also documents commands, marks, and jump history.
 
 Chrome uses the dark, 24-bit Ghostty palette with highlighted tabs, a reading-progress status bar, and bordered help, outline, and picker panels. Nerd Font icons and Powerline separators are enabled by default; run `PDFR_ASCII=1 pdfr file.pdf` for ASCII decorations without a patched font. Long file names retain their suffix, and duplicate tabs show their independent page numbers.
 
@@ -17,7 +17,7 @@ The last 50 opened paths are saved in `$XDG_STATE_HOME/pdfr/recent` (default `~/
 
 ## Tabs and the switcher
 
-Every opening creates an independent tab, even for an already-open file; document metadata and rendered pages are shared. `gd`, `:e %`, and `:tabnew %` copy the current view into another tab. `gt/gT` cycle tabs, `{N}gt` or `:b N` selects a numbered tab, and `gp` or `Ctrl-^` toggles between the two most recently used tabs. `:b name` matches a case-insensitive file-name fragment; ambiguous matches open the filtered switcher.
+Every opening creates an independent tab, even for an already-open file; document metadata and rendered pages are shared. `gd`, `:e %`, and `:tabnew %` copy the current view into another tab. `]b`/`[b` or `gt`/`gT` cycle tabs (`:bn`/`:bp` too), `{N}gt` or `:b N` selects a numbered tab, and `gp` or `Ctrl-^` toggles between the two most recently used tabs. `:b name` matches a case-insensitive file-name fragment; ambiguous matches open the filtered switcher.
 
 `gb`, `:ls`, `:tabs`, `:buffers`, or bare `:b` opens the switcher in tab order. It shows each tab's page, fit/zoom and dark setting, directory hints for colliding names, `*` for the active tab and `#` for the previous tab. Use `j/k`, `Enter`, or digits `1–9` to switch; `x` closes the highlighted tab, `d` duplicates it, `/` filters names (`Enter` finishes editing), and `Esc` closes. `g</g>` move a tab left/right; `:tabmove N` uses a zero-based position, and `:tabmove +N/-N` moves relatively. `:tabonly` closes all other tabs.
 

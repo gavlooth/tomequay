@@ -73,7 +73,7 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `H` / `M` / `L` | Scroll to top / middle / bottom of the page |
 | `+` / `-`, `zi` / `zo` | Zoom in / out |
 | `zw`, `zp` (`zz`), `z0` | Fit width, fit page, reset zoom to fit |
-| `gt` / `gT`, `{N}gt` | Next / previous tab, tab N |
+| `]b` / `[b`, `gt` / `gT`, `{N}gt` | Next / previous tab (`]b`, `[b` and `:bn`, `:bp` need no Shift), tab N |
 | `gd` (`:tab split`) | Duplicate the current tab; the copy navigates independently |
 | `gb`, `:ls`, `:tabs`, `:buffers`, `:b` | List open tabs and pick one |
 | `gp`, `Ctrl-^` | Return to the last active tab |

@@ -176,6 +176,8 @@ var bindings = [...]binding{
 	{sequence: runes("z0"), action: ResetZoom, description: "Reset zoom to fit"},
 	{sequence: runes("gt"), action: NextTab, counted: GoToTab, description: "Next tab, or tab N with a count"},
 	{sequence: runes("gT"), action: PreviousTab, description: "Previous tab"},
+	{sequence: runes("]b"), action: NextTab, description: "Next tab; a count moves further"},
+	{sequence: runes("[b"), action: PreviousTab, description: "Previous tab; a count moves further"},
 	{sequence: runes("gd"), action: DuplicateTab, description: "Duplicate the current tab with its own view"},
 	{sequence: runes("gb"), action: TabList, description: "List open tabs"},
 	{sequence: runes("gp"), action: PreviousUsedTab, description: "Return to the last active tab"},
