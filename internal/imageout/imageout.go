@@ -18,6 +18,10 @@ import (
 
 const pngChunkBytes = 3072
 
+// MaxGridSize is the largest supported grid dimension. The published kitty
+// row/column diacritic table contains exactly 297 entries.
+const MaxGridSize = len(rowColumnDiacritics)
+
 // Output writes image data and placeholder text to a terminal writer. It must
 // be used from one goroutine only, serialized with all other terminal drawing.
 // New must be used to initialize an Output.
@@ -36,9 +40,13 @@ func New(w io.Writer, tmux bool) *Output {
 }
 
 // SendPNG streams PNG bytes in base64 payloads of at most 4096 bytes and creates
-// a virtual placement. It does not decode or validate the PNG. Empty input is an
-// error. A failed upload may have sent partial data; the caller should Delete
-// the ID when abandoning it. The reader is never closed by SendPNG.
+// a virtual placement, requesting an upload acknowledgement with q=0. Success
+// means bytes reached the writer, not that the terminal accepted the image.
+// Callers must parse the terminal's graphics reply and wait for its OK before
+// drawing cells or starting another upload. SendPNG does not wait or retry.
+// It does not decode or validate the PNG. Empty input is an error. A failed
+// upload may have sent partial data; the caller should Delete the ID when
+// abandoning it. The reader is never closed by SendPNG.
 func (o *Output) SendPNG(id uint32, png io.Reader, columns, rows int) error {
 	if err := validateGrid(id, columns, rows); err != nil {
 		return err
@@ -68,7 +76,7 @@ func (o *Output) SendPNG(id uint32, png io.Reader, columns, rows int) error {
 		}
 		b := o.beginAPC()
 		if first {
-			b = append(b, "a=T,f=100,t=d,q=2,i="...)
+			b = append(b, "a=T,f=100,t=d,q=0,i="...)
 			b = strconv.AppendUint(b, uint64(id), 10)
 			b = append(b, ",c="...)
 			b = strconv.AppendInt(b, int64(columns), 10)
@@ -80,7 +88,11 @@ func (o *Output) SendPNG(id uint32, png io.Reader, columns, rows int) error {
 		if more {
 			b = append(b, '1', ';')
 		} else {
-			b = append(b, '0', ';')
+			b = append(b, '0')
+			if !first {
+				b = append(b, ",q=0"...)
+			}
+			b = append(b, ';')
 		}
 		start := len(b)
 		b = b[:start+base64.StdEncoding.EncodedLen(n)]

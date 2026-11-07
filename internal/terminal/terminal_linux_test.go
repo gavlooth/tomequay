@@ -20,10 +20,11 @@ import (
 )
 
 type ptyReport struct {
-	Kind  string
-	Size  Size
-	Key   keys.Key
-	Error string
+	Kind     string
+	Size     Size
+	Key      keys.Key
+	Error    string
+	Graphics GraphicsReplyEvent
 }
 
 // This subprocess keeps test-runner stdin/stdout and signal handlers untouched.
@@ -39,12 +40,18 @@ func TestTerminalPTYHelper(t *testing.T) {
 	}
 	defer tty.Close()
 	_ = report.Encode(ptyReport{Kind: "opened", Size: tty.Size()})
+	ignoreSignals := false
 	for event := range tty.Events() {
 		switch event := event.(type) {
 		case ResizeEvent:
 			_ = report.Encode(ptyReport{Kind: "resize", Size: event.Size})
+		case GraphicsReplyEvent:
+			_ = report.Encode(ptyReport{Kind: "graphics", Graphics: event})
 		case KeyEvent:
 			_ = report.Encode(ptyReport{Kind: "key", Key: event.Key})
+			if event.Key.Rune == 'i' {
+				ignoreSignals = true
+			}
 			if event.Key.Rune == 'p' {
 				panic("intentional caller panic")
 			}
@@ -52,6 +59,18 @@ func TestTerminalPTYHelper(t *testing.T) {
 				goto closed
 			}
 		case ErrorEvent:
+			if _, ok := event.Err.(*SignalError); ok {
+				if ignoreSignals {
+					continue
+				}
+				if _, err := io.WriteString(tty.Writer(), "signal-cleanup"); err != nil {
+					t.Fatal(err)
+				}
+				if err := tty.Flush(); err != nil {
+					t.Fatal(err)
+				}
+				goto closed
+			}
 			_ = report.Encode(ptyReport{Kind: "error", Error: event.Err.Error()})
 		}
 	}
@@ -250,6 +269,10 @@ func TestPTYLifecycleAndResize(t *testing.T) {
 	if key := s.next(t, "key").Key; key.Special != keys.Esc {
 		t.Fatalf("escape timeout key = %#v", key)
 	}
+	_, _ = io.WriteString(s.master, "\x1b_Gi=66051;OK\x1b\\")
+	if got := s.next(t, "graphics").Graphics; got != (GraphicsReplyEvent{ID: 66051, OK: true, Message: "OK"}) {
+		t.Fatalf("graphics reply = %#v", got)
+	}
 	_, _ = io.WriteString(s.master, "q")
 	s.next(t, "key")
 	s.next(t, "closed")
@@ -303,6 +326,26 @@ func TestPTYRestoresOnPanicAndSignals(t *testing.T) {
 				s.next(t, "closed")
 			}
 			s.wait(t, cause == "panic")
+			if cause != "panic" {
+				s.mu.Lock()
+				output := string(s.output)
+				s.mu.Unlock()
+				if !strings.Contains(output, "signal-cleanup"+leaveScreen) {
+					t.Fatalf("writer unavailable before signal restoration: %q", output)
+				}
+			}
 		})
 	}
+}
+
+func TestPTYSignalFallback(t *testing.T) {
+	s := startPTY(t, unix.Winsize{Col: 100, Row: 30, Xpixel: 900, Ypixel: 630}, false, false)
+	s.next(t, "opened")
+	_, _ = io.WriteString(s.master, "i")
+	s.next(t, "key")
+	if err := s.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	s.next(t, "closed")
+	s.wait(t, false)
 }

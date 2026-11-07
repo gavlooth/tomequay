@@ -22,6 +22,8 @@ const (
 	Backspace
 	Tab
 	F1
+	Home
+	End
 )
 
 // Key is a decoded terminal key. Set either Rune or Special, not both.
@@ -76,6 +78,7 @@ const (
 	JumpOlder
 	JumpNewer
 	Reload
+	Redraw
 	Outline
 	HelpAction
 	NewTab
@@ -146,7 +149,9 @@ var bindings = [...]binding{
 	{sequence: runes("K"), action: PreviousPage, description: "Previous page, at its top"},
 	{sequence: [2]Key{{Special: PageUp}}, action: PreviousPage, description: "Previous page, at its top"},
 	{sequence: runes("gg"), action: FirstPage, description: "First page"},
+	{sequence: [2]Key{{Special: Home}}, action: FirstPage, description: "First page"},
 	{sequence: runes("G"), action: LastPage, counted: GoToPage, description: "Last page, or page N with a count"},
+	{sequence: [2]Key{{Special: End}}, action: LastPage, description: "Last page"},
 	{sequence: runes("H"), action: ScrollToTop, description: "Scroll to the top of the page"},
 	{sequence: runes("M"), action: ScrollToMiddle, description: "Scroll to the middle of the page"},
 	{sequence: runes("L"), action: ScrollToBottom, description: "Scroll to the bottom of the page"},
@@ -175,6 +180,7 @@ var bindings = [...]binding{
 	{sequence: [2]Key{{Rune: 'i', Ctrl: true}}, action: JumpNewer, description: "Newer position in the jump list"},
 	{sequence: [2]Key{{Special: Tab}}, action: JumpNewer, description: "Newer position in the jump list (same as Ctrl-i)"},
 	{sequence: runes("r"), action: Reload, description: "Reload the file"},
+	{sequence: [2]Key{{Rune: 'l', Ctrl: true}}, action: Redraw, description: "Re-upload and redraw the visible page"},
 	{sequence: runes("gO"), action: Outline, description: "Open the document outline"},
 	{sequence: [2]Key{{Special: F1}}, action: HelpAction, description: "Show key help"},
 	{sequence: runes(":"), action: OpenCommandLine, prompt: CommandLine, description: "Enter a command line"},
@@ -350,7 +356,7 @@ func Help() []HelpEntry {
 
 func keyText(k Key) string {
 	if k.Special != NoSpecial {
-		names := [...]string{"", "Up", "Down", "Left", "Right", "PageUp", "PageDown", "Esc", "Enter", "Backspace", "Tab", "F1"}
+		names := [...]string{"", "Up", "Down", "Left", "Right", "PageUp", "PageDown", "Esc", "Enter", "Backspace", "Tab", "F1", "Home", "End"}
 		if int(k.Special) > 0 && int(k.Special) < len(names) {
 			return names[k.Special]
 		}

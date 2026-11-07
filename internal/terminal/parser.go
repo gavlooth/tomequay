@@ -8,23 +8,19 @@ import (
 	"terminal-pdf-reader/internal/keys"
 )
 
-// Home and End extend keys.Special for terminal navigation keys.
-const (
-	Home keys.Special = keys.F1 + 1 + iota
-	End
-)
-
 type parserState struct {
 	pending string
 	paste   bool
 	control bool
+	apc     bool
+	body    string
 }
 
 type cellSizeReply struct{ height, width int }
 
 // parse is a pure streaming decoder: the returned state is the only state needed
 // by the next call. timeout means no byte followed a lone Escape within 25 ms.
-// Terminal replies are private events, routed to the size query by the reader.
+// Cell-size replies are private events; graphics replies reach the application.
 func parse(state parserState, input []byte, timeout bool) (parserState, []Event) {
 	text := state.pending + string(input)
 	state.pending = ""
@@ -52,10 +48,33 @@ func parse(state parserState, input []byte, timeout bool) (parserState, []Event)
 					break
 				}
 			}
+			bodyEnd := end
 			if end < 0 {
 				state.pending = suffixPrefix(text, "\x1b\\")
+				bodyEnd = len(text) - len(state.pending)
+			} else if text[end-1] == '\a' {
+				bodyEnd--
+			} else {
+				bodyEnd -= 2
+			}
+			if state.apc {
+				if len(state.body)+bodyEnd <= 4096 {
+					state.body += text[:bodyEnd]
+				} else {
+					// Untrusted terminal strings must not grow without bound.
+					state.apc = false
+					state.body = ""
+				}
+			}
+			if end < 0 {
 				return state, events
 			}
+			if state.apc && text[end-1] == '\\' {
+				if reply, ok := parseGraphicsReply(state.body); ok {
+					events = append(events, reply)
+				}
+			}
+			state.apc, state.body = false, ""
 			state.control = false
 			text = text[end:]
 			continue
@@ -72,6 +91,7 @@ func parse(state parserState, input []byte, timeout bool) (parserState, []Event)
 			switch text[1] {
 			case ']', 'P', '_', '^', 'X':
 				state.control = true
+				state.apc = text[1] == '_'
 				text = text[2:]
 				continue
 			case '[', 'O':
@@ -161,6 +181,39 @@ func suffixPrefix(text, delimiter string) string {
 	return ""
 }
 
+func parseGraphicsReply(body string) (GraphicsReplyEvent, bool) {
+	reply := GraphicsReplyEvent{}
+	if !strings.HasPrefix(body, "G") {
+		return reply, false
+	}
+	header, message, ok := strings.Cut(body[1:], ";")
+	if !ok || message == "" {
+		return reply, false
+	}
+	// Kitty replies are printable ASCII. Do not pass embedded terminal controls
+	// to status text, even if a malformed APC contains a plausible image ID.
+	for i := range len(message) {
+		if message[i] < 0x20 || message[i] > 0x7e {
+			return reply, false
+		}
+	}
+	for field := range strings.SplitSeq(header, ",") {
+		name, value, ok := strings.Cut(field, "=")
+		if !ok || name == "" || value == "" {
+			return reply, false
+		}
+		if name == "i" {
+			id, err := strconv.ParseUint(value, 10, 32)
+			if err != nil || id == 0 || reply.ID != 0 {
+				return GraphicsReplyEvent{}, false
+			}
+			reply.ID = uint32(id)
+		}
+	}
+	reply.Message, reply.OK = message, message == "OK"
+	return reply, reply.ID != 0
+}
+
 func parseCellSize(sequence string) (cellSizeReply, bool) {
 	if !strings.HasPrefix(sequence, "6;") || !strings.HasSuffix(sequence, "t") {
 		return cellSizeReply{}, false
@@ -181,9 +234,9 @@ func sequenceKey(sequence string) (keys.Key, bool) {
 	if final == '~' {
 		switch params {
 		case "1", "7":
-			key.Special = Home
+			key.Special = keys.Home
 		case "4", "8":
-			key.Special = End
+			key.Special = keys.End
 		case "5":
 			key.Special = keys.PageUp
 		case "6":
@@ -216,9 +269,9 @@ func sequenceKey(sequence string) (keys.Key, bool) {
 	case 'D':
 		key.Special = keys.Left
 	case 'H':
-		key.Special = Home
+		key.Special = keys.Home
 	case 'F':
-		key.Special = End
+		key.Special = keys.End
 	case 'P':
 		key.Special = keys.F1
 	default:

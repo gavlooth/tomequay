@@ -100,12 +100,12 @@ func TestSendPNGRoundTrip(t *testing.T) {
 				}
 				wantHeader := ""
 				if i == 0 {
-					wantHeader = "a=T,f=100,t=d,q=2,i=66051,c=30,r=18,C=1,U=1,"
+					wantHeader = "a=T,f=100,t=d,q=0,i=66051,c=30,r=18,C=1,U=1,"
 				}
 				if i < len(apcs)-1 {
 					wantHeader += "m=1"
 				} else {
-					wantHeader += "m=0"
+					wantHeader += "m=0,q=0"
 				}
 				if header != wantHeader {
 					t.Fatalf("header = %q, want %q", header, wantHeader)
@@ -138,9 +138,15 @@ func TestSendPNGChunkBoundaries(t *testing.T) {
 				wantMore := "m=1"
 				if i == len(apcs)-1 {
 					wantMore = "m=0"
+					if i > 0 {
+						wantMore += ",q=0"
+					}
 				}
 				if !strings.HasSuffix(header, wantMore) || len(chunk) > 4096 || len(chunk) == 0 {
 					t.Fatalf("invalid chunk %d: %q (%d bytes)", i, header, len(chunk))
+				}
+				if i == 0 && !strings.Contains(header, "q=0,") {
+					t.Fatal("first upload APC must request acknowledgements")
 				}
 				payload.WriteString(chunk)
 			}
@@ -199,6 +205,9 @@ func TestWriteCells(t *testing.T) {
 }
 
 func TestPublishedTableBoundaries(t *testing.T) {
+	if MaxGridSize != 297 {
+		t.Fatalf("MaxGridSize = %d, want 297", MaxGridSize)
+	}
 	if len(rowColumnDiacritics) != 297 || rowColumnDiacritics[0] != '\u0305' || rowColumnDiacritics[1] != '\u030D' || rowColumnDiacritics[296] != '\U0001D244' {
 		t.Fatal("published kitty table differs")
 	}

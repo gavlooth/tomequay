@@ -1,5 +1,14 @@
 # Terminal PDF Reader
 
-A planned PDF reader with document tabs that works inside Alacritty and tmux on Sway. Each tab will keep its own page and view settings, including when the same PDF is open twice.
+A keyboard-first PDF reader with independent document tabs and real terminal page images. The supported display path is **Ghostty inside tmux on Sway**, using Kitty Unicode placeholders (not overlays or direct graphics placements).
 
-See [the development plan](docs/PLAN.md) for the display probe, design, and implementation order. No application code has been written yet.
+Requires Go and Poppler (`pacman -S poppler` on Arch, or `apt install poppler-utils` on Debian/Ubuntu). In tmux, enable graphics passthrough with `tmux set -g allow-passthrough on`.
+
+```sh
+go build ./cmd/pdfreader
+./pdfreader [--cache-mb 128] [--page 1] [file.pdf ...]
+```
+
+No files opens the in-app picker. Use `j/k` to scroll, `J/K` for pages, `12G` to jump, `+/-` to zoom, `zw/zp` to fit width/page, `/query` then `n/N` to search, `gd` to duplicate, and `gt/gT` to switch tabs. `Ctrl-l` forces a page re-upload/redraw. `o` opens the picker, `q` closes a tab, and `Q` quits. `F1` or `:help` shows all keys; the [key table](docs/PLAN.md#key-bindings) also documents commands, marks, and jump history.
+
+The last 50 opened paths are saved in `$XDG_STATE_HOME/pdfreader/recent` (default `~/.local/state/pdfreader/recent`); no reading state or passwords are saved. Poppler does not expose bookmarks through the selected CLI backend, so outline requests report that limitation. See the [display proof](docs/DISPLAY_PROBE_KITTY.md) for the supported image protocol and its measured limits.

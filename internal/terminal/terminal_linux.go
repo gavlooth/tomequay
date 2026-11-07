@@ -27,14 +27,30 @@ type ResizeEvent struct{ Size Size }
 type KeyEvent struct{ Key keys.Key }
 type ErrorEvent struct{ Err error }
 
-// Event is a KeyEvent, ResizeEvent, or ErrorEvent. Close closes the event stream.
+// GraphicsReplyEvent acknowledges a Kitty graphics command for an image ID.
+// OK is true only for the exact success message "OK".
+type GraphicsReplyEvent struct {
+	ID      uint32
+	OK      bool
+	Message string
+}
+
+// SignalError asks the application's event loop to clean up and exit. The
+// terminal writer remains available for 300 ms, or until Close is called.
+type SignalError struct{ Signal os.Signal }
+
+func (e *SignalError) Error() string { return "terminal: received " + e.Signal.String() }
+
+// Event is a KeyEvent, ResizeEvent, ErrorEvent, or GraphicsReplyEvent.
+// Close closes the event stream.
 type Event interface{}
 
 const (
-	escapeWait  = 25 * time.Millisecond
-	sizeWait    = 300 * time.Millisecond
-	enterScreen = "\x1b[?1049h\x1b[?25l"
-	leaveScreen = "\x1b[0m\x1b[?25h\x1b[?1049l"
+	escapeWait      = 25 * time.Millisecond
+	sizeWait        = 300 * time.Millisecond
+	signalCloseWait = 300 * time.Millisecond
+	enterScreen     = "\x1b[?1049h\x1b[?25l"
+	leaveScreen     = "\x1b[0m\x1b[?25h\x1b[?1049l"
 )
 
 type lockedWriter struct {
@@ -230,6 +246,19 @@ func (t *Terminal) readSignals() {
 			return
 		case sig := <-t.signals:
 			if sig != syscall.SIGWINCH {
+				timer := time.NewTimer(signalCloseWait)
+				defer timer.Stop()
+				// Include delivery time in the bound: a full event queue must
+				// not prevent restoration when the caller is unresponsive.
+				select {
+				case t.events <- ErrorEvent{Err: &SignalError{Signal: sig}}:
+					select {
+					case <-t.done:
+					case <-timer.C:
+					}
+				case <-t.done:
+				case <-timer.C:
+				}
 				t.shutdown()
 				return
 			}

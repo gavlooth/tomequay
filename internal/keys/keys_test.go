@@ -101,10 +101,12 @@ func TestDefaultBindings(t *testing.T) {
 		{Key{Special: Down}, ScrollDown}, {Key{Special: Up}, ScrollUp},
 		{Key{Special: Left}, ScrollLeft}, {Key{Special: Right}, ScrollRight},
 		{Key{Special: PageDown}, NextPage}, {Key{Special: PageUp}, PreviousPage},
+		{Key{Special: Home}, FirstPage}, {Key{Special: End}, LastPage},
 		{Key{Special: F1}, HelpAction}, {Key{Special: Tab}, JumpNewer},
 		{Key{Rune: 'd', Ctrl: true}, HalfPageDown}, {Key{Rune: 'u', Ctrl: true}, HalfPageUp},
 		{Key{Rune: 'f', Ctrl: true}, FullPageDown}, {Key{Rune: 'b', Ctrl: true}, FullPageUp},
 		{Key{Rune: 'o', Ctrl: true}, JumpOlder}, {Key{Rune: 'i', Ctrl: true}, JumpNewer},
+		{Key{Rune: 'l', Ctrl: true}, Redraw},
 	}
 	for _, test := range keyTests {
 		t.Run(keyText(test.key), func(t *testing.T) {

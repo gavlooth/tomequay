@@ -28,4 +28,6 @@
 // collision with the Help function. Question mark starts backward search, not
 // help. The q key closes a tab rather than recording a vim macro. Tab is treated
 // as Ctrl-i, matching terminals that cannot distinguish those inputs.
+// Home and End select the first and last page, respectively. Ctrl-l requests
+// re-uploading and redrawing the visible page without reloading its PDF file.
 package keys
