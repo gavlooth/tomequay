@@ -44,6 +44,7 @@ type document struct {
 	outline           []pdf.OutlineEntry
 	outlineLoaded     bool
 	outlineGeneration uint64
+	outlineError      string
 	outlineCancel     context.CancelFunc
 }
 
@@ -54,6 +55,7 @@ type position struct {
 }
 type tabState struct {
 	widthFit         bool
+	dark             bool
 	marks            map[rune]position
 	previous         *position
 	jumps            []position
@@ -108,6 +110,8 @@ type drawnFrame struct {
 	id                  uint32
 	x, y, columns, rows int
 	kind                frameKind
+	dark                bool
+	sidebar             int
 }
 
 type model struct {
@@ -127,6 +131,12 @@ type model struct {
 	helpOffset     int
 	picker         *picker
 	outline        *outlineView
+	tabList        *tabListView
+	sidebar        bool
+	sidebarView    *outlineView
+	tabHits        []tabHit
+	drag           *pageDrag
+	lastClick      *rowClick
 	recent         []string
 	recentFile     string
 	password       []rune

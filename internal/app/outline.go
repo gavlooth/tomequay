@@ -100,17 +100,26 @@ func (m *model) showOutline() {
 	p := &outlineView{path: t.Document.Path, tab: t.ID, page: t.View.Page, selected: -1}
 	m.outline, m.message = p, ""
 	if d.outlineLoaded {
-		m.fillOutline(p, d.outline)
+		if d.outlineError != "" {
+			m.outline = nil
+			m.message = d.outlineError
+		} else {
+			m.fillOutline(p, d.outline)
+		}
 		return
 	}
 	p.loading = true
-	if d.outlineCancel != nil {
+	m.requestOutline(t.Document.Path, d)
+}
+
+func (m *model) requestOutline(path string, d *document) {
+	if d.outlineLoaded || d.outlineCancel != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(m.ctx)
 	d.outlineCancel = cancel
 	d.outlineGeneration++
-	path, password, mtime, generation := t.Document.Path, d.password, d.mtime, d.outlineGeneration
+	password, mtime, generation := d.password, d.mtime, d.outlineGeneration
 	m.workers.Add(1)
 	go func() {
 		defer m.workers.Done()
@@ -141,8 +150,10 @@ func (m *model) acceptOutline(r outlineResult) {
 		d.outlineCancel()
 		d.outlineCancel = nil
 	}
-	if r.err == nil {
-		d.outline, d.outlineLoaded = r.entries, true
+	d.outline, d.outlineLoaded, d.outlineError = r.entries, true, ""
+	if r.err != nil {
+		d.outlineError = r.err.Error()
+		m.message = d.outlineError
 	}
 	p := m.outline
 	if p == nil || p.path != r.path {
@@ -163,10 +174,14 @@ func (m *model) dropOutline(path string) {
 			d.outlineCancel = nil
 		}
 		d.outline, d.outlineLoaded = nil, false
+		d.outlineError = ""
 		d.outlineGeneration++
 	}
 	if m.outline != nil && m.outline.path == path {
 		m.outline = nil
+	}
+	if m.sidebarView != nil && m.sidebarView.path == path {
+		m.sidebarView = nil
 	}
 }
 

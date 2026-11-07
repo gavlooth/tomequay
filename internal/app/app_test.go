@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"terminal-pdf-reader/internal/cache"
@@ -474,11 +476,174 @@ func TestResizeRecentersReusableRender(t *testing.T) {
 	m, _ := testModel(t, 100)
 	id := addTab(m, "/one.pdf")
 	m.layout = m.activeLayout()
-	m.requested, m.requestedTab, m.requestedKey = true, id, renderKey(m.layout.Request, m.docs["/one.pdf"].mtime)
+	m.requested, m.requestedTab, m.requestedKey = true, id, renderKey(m.layout.Request, m.docs["/one.pdf"].mtime, false)
 	oldX := m.layout.X
 	m.size.Columns += 2
 	m.prepareRender()
 	if m.layout.X != oldX+1 || m.generation != 0 {
 		t.Fatalf("resize failed to reposition reusable render: %+v generation=%d", m.layout, m.generation)
+	}
+}
+
+func TestTabListFilteringClosingAndDuplicating(t *testing.T) {
+	m, _ := testModel(t, 1024)
+	first := addTab(m, "/a/Quantum.pdf")
+	second := addTab(m, "/b/Quantum.pdf")
+	other := addTab(m, "/other.pdf")
+	m.selectTabByName("qUaNt")
+	if m.tabList == nil || len(m.tabList.filtered) != 2 {
+		t.Fatal("ambiguous name did not list matches")
+	}
+	m.key(keys.Key{Rune: 'd'})
+	copyTab, _ := m.tabs.Active()
+	if copyTab.ID == first || copyTab.ID == second || copyTab.Document != m.tabList.filtered[0].Document {
+		t.Fatal("switcher duplicate did not share document")
+	}
+	m.key(keys.Key{Rune: 'x'})
+	if len(m.tabs.Tabs()) != 3 || len(m.tabList.filtered) != 2 {
+		t.Fatal("switcher close left stale matches")
+	}
+	m.key(keys.Key{Special: keys.Esc})
+	m.selectTabByName("OTHER")
+	if active, _ := m.tabs.Active(); active.ID != other {
+		t.Fatal("unique name did not focus tab")
+	}
+	m.showTabList("")
+	if m.tabList.filtered[m.tabList.selected].ID != other {
+		t.Fatal("active tab not preselected")
+	}
+	m.key(keys.Key{Rune: '1'})
+	if active, _ := m.tabs.Active(); active.ID != first || m.tabList != nil {
+		t.Fatal("digit did not select absolute tab")
+	}
+	m.showTabList("Quantum")
+	m.tabList.filtering = true
+	m.mouse(terminal.MouseEvent{Kind: terminal.MousePress, Button: terminal.ButtonLeft, Column: 5, Row: 3})
+	if active, _ := m.tabs.Active(); active.ID != second || m.tabList != nil {
+		t.Fatal("click while filtering did not activate the selected tab")
+	}
+}
+
+func TestDarkDuplicateAndCachedReturn(t *testing.T) {
+	m, _ := testModel(t, 1024)
+	id := addTab(m, "/one.pdf")
+	layout := m.activeLayout()
+	for _, dark := range []bool{false, true} {
+		for _, page := range []int{1, 2} {
+			request := layout.Request
+			request.Page = page
+			m.cache.Put(renderKey(request, 1, dark), []byte("png"))
+		}
+	}
+	m.prepareRender()
+	lightKey := m.currentKey
+	lightID := m.image(lightKey, true).id
+	m.command(keys.Command{Action: keys.ToggleDark})
+	m.prepareRender()
+	if !m.currentKey.Dark || m.currentKey == lightKey {
+		t.Fatal("dark reused light cache key")
+	}
+	copyID := m.duplicateTab(id)
+	if !m.state(copyID).dark {
+		t.Fatal("duplicate lost dark setting")
+	}
+	m.command(keys.Command{Action: keys.ToggleDark})
+	m.prepareRender()
+	if !m.state(id).dark || m.state(copyID).dark || m.currentKey != lightKey || m.image(lightKey, true).id != lightID {
+		t.Fatal("independent dark setting or cached light identity lost")
+	}
+}
+
+func TestSidebarFollowsPageAndReflows(t *testing.T) {
+	m, _ := testModel(t, 1024)
+	id := addTab(m, "/one.pdf")
+	d := m.docs["/one.pdf"]
+	d.outlineLoaded = true
+	d.outline = []pdf.OutlineEntry{{Title: "First", Page: 1}, {Title: "Later", Page: 20}}
+	m.tabs.SetFit(id, tabs.FitWidth)
+	full := m.activeLayout()
+	m.sidebar = true
+	m.prepareSidebar()
+	narrow := m.activeLayout()
+	if narrow.Request.WidthPixels >= full.Request.WidthPixels || narrow.X < m.sidebarWidth() {
+		t.Fatal("sidebar did not reflow page")
+	}
+	m.tabs.SetPage(id, 25, 0)
+	m.prepareSidebar()
+	if m.sidebarView.selected != 1 {
+		t.Fatal("sidebar did not follow current section")
+	}
+	m.sidebarClick(2)
+	if view, _ := m.tabs.View(id); view.Page != 1 {
+		t.Fatal("sidebar click did not jump")
+	}
+	m.size.Columns = 60
+	if m.sidebarWidth() != 0 {
+		t.Fatal("sidebar visible in narrow pane")
+	}
+}
+
+func TestMouseScrollZoomAndDrag(t *testing.T) {
+	m, _ := testModel(t, 1024)
+	id := addTab(m, "/one.pdf")
+	m.mouse(terminal.MouseEvent{Kind: terminal.MouseWheelDown})
+	if view, _ := m.tabs.View(id); view.Page != 2 {
+		t.Fatal("wheel did not scroll to next fitted page")
+	}
+	m.mouse(terminal.MouseEvent{Kind: terminal.MouseWheelUp, Ctrl: true})
+	m.mouse(terminal.MouseEvent{Kind: terminal.MouseWheelUp, Ctrl: true})
+	m.mouse(terminal.MouseEvent{Kind: terminal.MouseWheelUp, Ctrl: true})
+	view, _ := m.tabs.View(id)
+	if view.Zoom <= 1 || view.Fit != tabs.Custom {
+		t.Fatal("Ctrl wheel did not zoom")
+	}
+	layout := m.activeLayout()
+	m.mouse(terminal.MouseEvent{Kind: terminal.MousePress, Button: terminal.ButtonLeft, Column: layout.X + 5, Row: layout.Y + 5})
+	m.mouse(terminal.MouseEvent{Kind: terminal.MouseDrag, Button: terminal.ButtonLeft, Column: layout.X + 3, Row: layout.Y + 3})
+	view, _ = m.tabs.View(id)
+	if view.ScrollX <= 0 || view.ScrollY <= 0 {
+		t.Fatal("drag did not pan zoomed page")
+	}
+	m.mouse(terminal.MouseEvent{Kind: terminal.MouseRelease})
+	if m.drag != nil {
+		t.Fatal("release kept dragging")
+	}
+}
+
+func TestReopeningFileKeepsIndependentViewAndSharedCache(t *testing.T) {
+	m, _ := testModel(t, 1024)
+	path := filepath.Join(t.TempDir(), "book.pdf")
+	if err := os.WriteFile(path, []byte("already loaded document"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	first := addTab(m, path)
+	m.tabs.SetPage(first, 25, 0.5)
+	m.state(first).dark = true
+	shared := m.docs[path]
+	k := cache.Key{Path: path, Page: 25}
+	m.cache.Put(k, []byte("rendered page"))
+	m.open(path, 1, "")
+	opened, _ := m.tabs.Active()
+	if opened.ID == first || opened.Document != m.tabs.Tabs()[0].Document || m.docs[path] != shared || !m.cache.Contains(k) {
+		t.Fatal("reopening failed to share document/cache in an independent tab")
+	}
+	if view, _ := m.tabs.View(first); view.Page != 25 || view.ScrollY != 0.5 || !m.state(first).dark || opened.View.Page != 1 {
+		t.Fatal("reopening changed the original view")
+	}
+}
+
+func TestCountedTabSwitchRemembersOnlyDisplayedTabs(t *testing.T) {
+	m, _ := testModel(t, 1024)
+	first := addTab(m, "/one.pdf")
+	addTab(m, "/two.pdf")
+	third := addTab(m, "/three.pdf")
+	m.tabs.Focus(first)
+	m.command(keys.Command{Action: keys.NextTab, Count: 2})
+	if active, _ := m.tabs.Active(); active.ID != third {
+		t.Fatal("counted switch missed destination")
+	}
+	m.command(keys.Command{Action: keys.PreviousUsedTab})
+	if active, _ := m.tabs.Active(); active.ID != first {
+		t.Fatal("counted switch remembered an undisplayed intermediate tab")
 	}
 }

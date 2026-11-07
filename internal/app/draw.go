@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"terminal-pdf-reader/internal/keys"
+	"terminal-pdf-reader/internal/pagefilter"
 	"terminal-pdf-reader/internal/tabs"
 )
 
@@ -19,19 +20,22 @@ func (m *model) text(x, y int, s string) {
 func (m *model) draw() error {
 	w := m.screen.Writer()
 	active, _ := m.tabs.Active()
-	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.outline == nil && m.passwordFor == nil {
+	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil && m.passwordFor == nil {
 		m.ensureUpload()
 	}
 	m.drawTabs()
 	next := drawnFrame{size: m.size}
 	if active != nil {
 		next.tab = active.ID
+		next.dark = m.state(active.ID).dark
+		next.sidebar = m.sidebarWidth()
 	}
 	switch {
 	case m.size.Columns < 20 || m.size.Rows < 8:
 		next.kind = smallFrame
-	case m.help || m.picker != nil || m.outline != nil:
+	case m.help || m.picker != nil || m.outline != nil || m.tabList != nil:
 		next.kind = overlayFrame
+		next.sidebar = 0
 	case m.passwordFor == nil && len(m.currentPNG) > 0:
 		r := m.image(m.currentKey, m.cache.Contains(m.currentKey))
 		if r.sent {
@@ -46,8 +50,12 @@ func (m *model) draw() error {
 	// graphics passthrough bytes even though it can reconstruct ordinary text.
 	if next != m.frame || next.kind == overlayFrame {
 		blank := strings.Repeat(" ", max(0, m.size.Columns))
+		background := m.theme.Background
+		if next.dark && next.kind != overlayFrame {
+			background = RGB(pagefilter.DarkPaper)
+		}
 		for row := 1; row < m.size.Rows-1; row++ {
-			_, err := fmt.Fprintf(w, "\x1b[%d;1H\x1b[0m%s\x1b[K", row+1, blank)
+			_, err := fmt.Fprintf(w, "\x1b[%d;1H\x1b[0m\x1b[48;2;%d;%d;%dm%s\x1b[0m\x1b[K", row+1, background>>16&255, background>>8&255, background&255, blank)
 			m.noteOutput(err)
 		}
 		switch next.kind {
@@ -60,11 +68,16 @@ func (m *model) draw() error {
 				m.drawHelp()
 			} else if m.outline != nil {
 				m.drawOutline()
+			} else if m.tabList != nil {
+				m.drawTabList()
 			} else {
 				m.drawPicker()
 			}
 		}
 		m.frame = next
+	}
+	if next.kind != overlayFrame && next.kind != smallFrame {
+		m.drawSidebar()
 	}
 	m.drawStatus()
 	// Exactly one flush belongs to each complete frame.
@@ -75,6 +88,7 @@ func (m *model) drawTabs() {
 	t := m.theme
 	r := m.row(0)
 	all := m.tabs.Tabs()
+	m.tabHits = m.tabHits[:0]
 	if len(all) == 0 {
 		r.add(t.glyph(" \uf1c1 pdfr", " pdfr"), textStyle{fg: t.Cyan, bg: t.Background, bold: true})
 		r.finish()
@@ -111,6 +125,7 @@ func (m *model) drawTabs() {
 		split := strings.IndexByte(labels[i], ' ') + 1
 		prefix := clipText(labels[i][:split], max(0, width-3))
 		label := prefix + ellipsisText(labels[i][split:], max(0, width-3-textWidth(prefix)), t.NoGlyphs)
+		x := r.x
 		if i == selected {
 			r.add(" "+label+" ", textStyle{fg: t.Background, bg: t.Blue, bold: true})
 			r.add(t.glyph("\ue0b0", ">"), textStyle{fg: t.Blue, bg: t.Background})
@@ -118,6 +133,7 @@ func (m *model) drawTabs() {
 			r.add(" "+label+" ", t.muted())
 			r.add(t.glyph("│", "|"), t.muted())
 		}
+		m.tabHits = append(m.tabHits, tabHit{id: all[i].ID, start: x, end: r.x})
 	}
 	if marker != "" {
 		r.padTo(m.size.Columns-textWidth(marker), t.plain())
@@ -134,6 +150,8 @@ func (m *model) modeLabel() (string, RGB) {
 		return "HELP", m.theme.Cyan
 	case m.outline != nil:
 		return "OUTLINE", m.theme.Blue
+	case m.tabList != nil:
+		return "TABS", m.theme.Blue
 	case m.picker != nil:
 		return "PICKER", m.theme.Green
 	case m.decoder.Mode() == keys.Search:
@@ -159,7 +177,9 @@ func (m *model) promptText() (string, bool) {
 		return "/" + m.picker.filter, true
 	case m.outline != nil && m.outline.filtering:
 		return "/" + m.outline.filter, true
-	case m.decoder.Mode() != keys.Normal && !m.help && m.picker == nil && m.outline == nil:
+	case m.tabList != nil && m.tabList.filtering:
+		return "/" + m.tabList.filter, true
+	case m.decoder.Mode() != keys.Normal && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil:
 		return m.decoder.Pending(), true
 	default:
 		return "", false
@@ -210,6 +230,9 @@ func (m *model) drawStatus() {
 		}
 		fit = " " + fit + " "
 		s := m.state(active.ID)
+		if s.dark {
+			fit += "dark "
+		}
 		match := ""
 		if s.searchQuery != "" || len(s.searchPages) > 0 {
 			match = fmt.Sprintf(" match %d/%d ", max(0, s.searchIndex+1), len(s.searchPages))
@@ -245,6 +268,9 @@ func (m *model) drawStatus() {
 		}
 		r.add(fit, textStyle{fg: t.Cyan, bg: t.Background})
 		r.add(match, textStyle{fg: t.Yellow, bg: t.Background})
+		if message == "" && space > 72 {
+			message = "gb tabs  gd copy  zd dark  gs sidebar  F1 help"
+		}
 		if message != "" {
 			r.add(clipText(" "+cleanText(message), max(0, m.size.Columns-right-r.x)), m.messageStyle(message))
 		}
@@ -335,6 +361,8 @@ var helpGroups = map[keys.Action]string{
 	keys.GoToPage: "Navigation", keys.ScrollToTop: "Navigation", keys.ScrollToMiddle: "Navigation", keys.ScrollToBottom: "Navigation",
 	keys.ZoomIn: "Zoom", keys.ZoomOut: "Zoom", keys.FitWidth: "Zoom", keys.FitPage: "Zoom", keys.ResetZoom: "Zoom",
 	keys.NextTab: "Tabs", keys.PreviousTab: "Tabs", keys.GoToTab: "Tabs", keys.DuplicateTab: "Tabs", keys.CloseTab: "Tabs", keys.NewTab: "Tabs",
+	keys.TabList: "Tabs", keys.PreviousUsedTab: "Tabs", keys.GoToTabByName: "Tabs", keys.MoveTab: "Tabs", keys.CloseOtherTabs: "Tabs",
+	keys.ToggleDark: "Zoom", keys.ToggleSidebar: "Files",
 	keys.SearchForward: "Search", keys.SearchBackward: "Search", keys.SearchNext: "Search", keys.SearchPrevious: "Search",
 	keys.SetMark: "Marks", keys.JumpToMark: "Marks", keys.JumpBack: "Marks", keys.JumpOlder: "Marks", keys.JumpNewer: "Marks",
 	keys.OpenFile: "Files", keys.QuitAll: "Files", keys.Reload: "Files", keys.Redraw: "Files", keys.Outline: "Files",

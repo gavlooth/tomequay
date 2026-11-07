@@ -342,3 +342,44 @@ func TestRealPDFSmoke(t *testing.T) {
 	}
 	t.Logf("opened real PDF with %d pages; duplicate navigation preserved source page %d", count, count)
 }
+
+func TestRecentTabsFollowFocusAndClose(t *testing.T) {
+	s := tabs.NewSet()
+	a, b, c := s.Open("/a.pdf", 1), s.Open("/b.pdf", 1), s.Open("/c.pdf", 1)
+	s.Focus(a)
+	if previous, ok := s.PreviousUsed(); !ok || previous != c {
+		t.Fatalf("previous = %d, %v; want %d", previous, ok, c)
+	}
+	s.Focus(c)
+	s.Focus(a)
+	s.Close(c)
+	if previous, ok := s.PreviousUsed(); !ok || previous != b {
+		t.Fatalf("closed tab remained recent: %d, %v", previous, ok)
+	}
+	s.Close(a)
+	active(t, s, b)
+	if _, ok := s.PreviousUsed(); ok {
+		t.Fatal("previous tab exists with one tab")
+	}
+}
+
+func TestMoveKeepsFocusAndRecentOrder(t *testing.T) {
+	s := tabs.NewSet()
+	a, b, c := s.Open("/a.pdf", 1), s.Open("/b.pdf", 1), s.Open("/c.pdf", 1)
+	s.Focus(b)
+	s.Move(b, 99)
+	all := s.Tabs()
+	if all[0].ID != a || all[1].ID != c || all[2].ID != b {
+		t.Fatalf("move right: %+v", all)
+	}
+	active(t, s, b)
+	if previous, _ := s.PreviousUsed(); previous != c {
+		t.Fatal("move changed recent order")
+	}
+	s.Move(b, -99)
+	all = s.Tabs()
+	if all[0].ID != b || all[1].ID != a || all[2].ID != c {
+		t.Fatalf("move left: %+v", all)
+	}
+	active(t, s, b)
+}

@@ -56,6 +56,7 @@ type Set struct {
 	documents map[string]*Document
 	nextID    TabID
 	active    int
+	recent    []TabID
 }
 
 func NewSet() *Set { return &Set{} }
@@ -77,6 +78,7 @@ func (s *Set) Open(canonicalPath string, pageCount int) TabID {
 	tab := &Tab{ID: s.nextID, Document: doc, View: View{Page: 1, Fit: FitPage, Zoom: 1}}
 	s.tabs = append(s.tabs, tab)
 	s.active = len(s.tabs) - 1
+	s.use(tab.ID)
 	return tab.ID
 }
 
@@ -94,6 +96,7 @@ func (s *Set) Duplicate(id TabID) TabID {
 	copy(s.tabs[i+2:], s.tabs[i+1:])
 	s.tabs[i+1] = &tab
 	s.active = i + 1
+	s.use(tab.ID)
 	return tab.ID
 }
 
@@ -114,6 +117,16 @@ func (s *Set) Close(id TabID) {
 	} else if s.active >= len(s.tabs) && s.active > 0 {
 		s.active--
 	}
+	for j, recent := range s.recent {
+		if recent == id {
+			copy(s.recent[j:], s.recent[j+1:])
+			s.recent = s.recent[:len(s.recent)-1]
+			break
+		}
+	}
+	if tab, ok := s.Active(); ok {
+		s.use(tab.ID)
+	}
 	for _, tab := range s.tabs {
 		if tab.Document == doc {
 			return
@@ -126,6 +139,7 @@ func (s *Set) Close(id TabID) {
 func (s *Set) Next() {
 	if len(s.tabs) > 0 {
 		s.active = (s.active + 1) % len(s.tabs)
+		s.use(s.tabs[s.active].ID)
 	}
 }
 
@@ -133,15 +147,57 @@ func (s *Set) Next() {
 func (s *Set) Previous() {
 	if len(s.tabs) > 0 {
 		s.active = (s.active + len(s.tabs) - 1) % len(s.tabs)
+		s.use(s.tabs[s.active].ID)
 	}
 }
 
 func (s *Set) Focus(id TabID) bool {
 	if i := s.index(id); i >= 0 {
 		s.active = i
+		s.use(id)
 		return true
 	}
 	return false
+}
+
+func (s *Set) use(id TabID) {
+	for i, recent := range s.recent {
+		if recent == id {
+			copy(s.recent[1:i+1], s.recent[:i])
+			s.recent[0] = id
+			return
+		}
+	}
+	s.recent = append(s.recent, 0)
+	copy(s.recent[1:], s.recent[:len(s.recent)-1])
+	s.recent[0] = id
+}
+
+// PreviousUsed returns the most recently focused tab other than the active tab.
+func (s *Set) PreviousUsed() (TabID, bool) {
+	if len(s.recent) < 2 {
+		return 0, false
+	}
+	return s.recent[1], true
+}
+
+// Move places id at a zero-based display position, clamped to the tab list.
+// Focus and recent-use order stay unchanged.
+func (s *Set) Move(id TabID, destination int) {
+	i := s.index(id)
+	if i < 0 {
+		return
+	}
+	destination = max(0, min(len(s.tabs)-1, destination))
+	focused := s.tabs[s.active].ID
+	tab := s.tabs[i]
+	if destination < i {
+		copy(s.tabs[destination+1:i+1], s.tabs[destination:i])
+	} else {
+		copy(s.tabs[i:destination], s.tabs[i+1:destination+1])
+	}
+	s.tabs[destination] = tab
+	s.active = s.index(focused)
 }
 
 // Active returns the focused tab, or nil and false for an empty set. The pointer

@@ -269,3 +269,20 @@ func TestRealPDFSmoke(t *testing.T) {
 	assertSize(t, c, 0, 0)
 	t.Logf("cached and dropped real PDF page: %dx%d PNG, %d bytes", config.Width, config.Height, len(data))
 }
+
+func TestLightAndDarkPagesHaveSeparateEntries(t *testing.T) {
+	c := cache.New(64)
+	light, dark := key(1), key(1)
+	dark.Dark = true
+	c.Put(light, []byte("light"))
+	c.Put(dark, []byte("dark"))
+	for k, want := range map[cache.Key]string{light: "light", dark: "dark"} {
+		if got, ok := c.Get(k); !ok || string(got) != want {
+			t.Fatalf("page dark=%v: %q, %v; want %q", k.Dark, got, ok, want)
+		}
+	}
+	c.DropPath(light.Path)
+	if c.Contains(light) || c.Contains(dark) {
+		t.Fatal("reload retained a color variant")
+	}
+}

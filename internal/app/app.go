@@ -69,6 +69,9 @@ func Run(ctx context.Context, opts Options) (err error) {
 				case terminal.KeyEvent:
 					m.key(event.Key)
 					redraw = true
+				case terminal.MouseEvent:
+					m.mouse(event)
+					redraw = true
 				case terminal.ResizeEvent:
 					redraw = m.size != event.Size
 					m.size = event.Size

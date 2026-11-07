@@ -55,6 +55,10 @@ func (m *model) key(k keys.Key) {
 		m.outlineKey(k)
 		return
 	}
+	if m.tabList != nil {
+		m.tabListKey(k)
+		return
+	}
 	cmd, ok := m.decoder.Feed(k)
 	if ok {
 		m.command(cmd)
@@ -94,6 +98,15 @@ func (m *model) command(cmd keys.Command) {
 		return
 	case keys.Outline:
 		m.showOutline()
+		return
+	case keys.TabList:
+		m.showTabList("")
+		return
+	case keys.GoToTabByName:
+		m.selectTabByName(cmd.Text)
+		return
+	case keys.ToggleSidebar:
+		m.sidebar = !m.sidebar
 		return
 	}
 	t, ok := m.tabs.Active()
@@ -169,13 +182,17 @@ func (m *model) command(cmd keys.Command) {
 	case keys.FitPage, keys.ResetZoom:
 		s.widthFit = false
 		m.tabs.SetFit(t.ID, tabs.FitPage)
-	case keys.NextTab:
-		for range n % len(m.tabs.Tabs()) {
-			m.tabs.Next()
+	case keys.NextTab, keys.PreviousTab:
+		all := m.tabs.Tabs()
+		delta := n % len(all)
+		if cmd.Action == keys.PreviousTab {
+			delta = -delta
 		}
-	case keys.PreviousTab:
-		for range n % len(m.tabs.Tabs()) {
-			m.tabs.Previous()
+		for i, tab := range all {
+			if tab.ID == t.ID {
+				m.tabs.Focus(all[(i+len(all)+delta)%len(all)].ID)
+				break
+			}
 		}
 	case keys.GoToTab:
 		tt := m.tabs.Tabs()
@@ -185,30 +202,33 @@ func (m *model) command(cmd keys.Command) {
 			m.message = "no such tab"
 		}
 	case keys.DuplicateTab:
-		id := m.tabs.Duplicate(t.ID)
-		m.state(id).widthFit = s.widthFit
+		m.duplicateTab(t.ID)
 	case keys.CloseTab:
-		path := t.Document.Path
-		if s.searchCancel != nil {
-			s.searchCancel()
+		m.closeTab(t.ID)
+	case keys.PreviousUsedTab:
+		if id, ok := m.tabs.PreviousUsed(); ok {
+			m.tabs.Focus(id)
 		}
-		m.tabs.Close(t.ID)
-		delete(m.states, t.ID)
-		// Closing one duplicate must not invalidate the other duplicate's cache.
-		inUse := false
-		for _, other := range m.tabs.Tabs() {
-			if other.Document.Path == path {
-				inUse = true
-				break
+	case keys.MoveTab:
+		destination := cmd.Count
+		if cmd.Arg == '+' || cmd.Arg == '-' {
+			all := m.tabs.Tabs()
+			for i, tab := range all {
+				if tab.ID == t.ID {
+					destination = i + max(-i, min(len(all)-1-i, cmd.Count))
+					break
+				}
 			}
 		}
-		if !inUse {
-			m.dropDocument(path)
-			delete(m.docs, path)
+		m.tabs.Move(t.ID, destination)
+	case keys.CloseOtherTabs:
+		for _, tab := range m.tabs.Tabs() {
+			if tab.ID != t.ID {
+				m.closeTab(tab.ID)
+			}
 		}
-		if _, ok := m.tabs.Active(); !ok {
-			m.quit = true
-		}
+	case keys.ToggleDark:
+		s.dark = !s.dark
 	case keys.SetMark:
 		s.marks[cmd.Arg] = old
 		m.message = fmt.Sprintf("mark %c set", cmd.Arg)

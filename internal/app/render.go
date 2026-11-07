@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"terminal-pdf-reader/internal/cache"
+	"terminal-pdf-reader/internal/pagefilter"
 	"terminal-pdf-reader/internal/pdf"
 )
 
@@ -16,13 +17,17 @@ func (m *model) activeLayout() pageLayout {
 	if d == nil || !d.ready {
 		return pageLayout{}
 	}
-	l := layoutPage(m.size, d.info, t.View, m.state(t.ID).widthFit)
+	size := m.size
+	sidebar := m.sidebarWidth()
+	size.Columns -= sidebar
+	l := layoutPage(size, d.info, t.View, m.state(t.ID).widthFit)
+	l.X += sidebar
 	l.Request.Path, l.Request.Password = t.Document.Path, d.password
 	return l
 }
-func renderKey(r pdf.RenderRequest, mtime int64) cache.Key {
+func renderKey(r pdf.RenderRequest, mtime int64, dark bool) cache.Key {
 	return cache.Key{Path: r.Path, ModTimeUnixNano: mtime, Page: r.Page, WidthPixels: r.WidthPixels, HeightPixels: r.HeightPixels,
-		ZoomMilli: int(r.Zoom*1000 + 0.5), CropX: r.CropX, CropY: r.CropY, CropWidth: r.CropWidth, CropHeight: r.CropHeight}
+		Dark: dark, ZoomMilli: int(r.Zoom*1000 + 0.5), CropX: r.CropX, CropY: r.CropY, CropWidth: r.CropWidth, CropHeight: r.CropHeight}
 }
 
 type renderJob struct {
@@ -31,8 +36,9 @@ type renderJob struct {
 }
 
 func (m *model) prepareRender() {
+	m.prepareSidebar()
 	t, ok := m.tabs.Active()
-	if !ok || m.picker != nil || m.outline != nil || m.help || m.passwordFor != nil || m.size.Columns < 20 || m.size.Rows < 8 {
+	if !ok || m.picker != nil || m.outline != nil || m.tabList != nil || m.help || m.passwordFor != nil || m.size.Columns < 20 || m.size.Rows < 8 {
 		if m.requested {
 			m.invalidate()
 		}
@@ -49,7 +55,8 @@ func (m *model) prepareRender() {
 	if l.Columns < 1 || l.Rows < 1 {
 		return
 	}
-	key := renderKey(l.Request, d.mtime)
+	dark := m.state(t.ID).dark
+	key := renderKey(l.Request, d.mtime, dark)
 	if m.requested && m.requestedTab == t.ID && m.requestedKey == key {
 		// A wider pane can change centering without changing the render box.
 		m.layout = l
@@ -79,7 +86,7 @@ func (m *model) prepareRender() {
 		}
 		next := l
 		next.Request.Page = page
-		if !m.cache.Contains(renderKey(next.Request, mtime)) {
+		if !m.cache.Contains(renderKey(next.Request, mtime, dark)) {
 			requests = append(requests, renderJob{next, false})
 		}
 	}
@@ -94,7 +101,10 @@ func (m *model) prepareRender() {
 				return
 			}
 			data, err := m.tools.RenderPage(ctx, request.layout.Request)
-			r := renderResult{tab: id, generation: generation, key: renderKey(request.layout.Request, mtime), layout: request.layout, png: data, err: err, foreground: request.foreground}
+			if err == nil && dark {
+				data, err = pagefilter.Dark(data)
+			}
+			r := renderResult{tab: id, generation: generation, key: renderKey(request.layout.Request, mtime, dark), layout: request.layout, png: data, err: err, foreground: request.foreground}
 			select {
 			case m.results <- r:
 			case <-ctx.Done():

@@ -13,6 +13,7 @@ type Key struct {
 	WidthPixels     int
 	HeightPixels    int
 	ZoomMilli       int
+	Dark            bool
 	// Crop coordinates and size are pixels of the zoomed page. All zeros mean
 	// the whole page.
 	CropX      int

@@ -75,6 +75,14 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `zw`, `zp` (`zz`), `z0` | Fit width, fit page, reset zoom to fit |
 | `gt` / `gT`, `{N}gt` | Next / previous tab, tab N |
 | `gd` (`:tab split`) | Duplicate the current tab; the copy navigates independently |
+| `gb`, `:ls`, `:tabs`, `:buffers`, `:b` | List open tabs and pick one |
+| `gp`, `Ctrl-^` | Return to the last active tab |
+| `:b N`, `:b name` | Select tab N or a tab whose name matches |
+| `:e %`, `:tabnew %` | Open the current file again as an independent tab |
+| `g<` / `g>`, `:tabmove N` / `+N` / `-N` | Move the current tab left / right, or to position N |
+| `:tabonly` | Close all other tabs |
+| `zd`, `:dark` | Toggle dark page colours |
+| `gs`, `:sidebar` | Toggle the outline sidebar |
 | `o`, `:e {path}` | Open a PDF in a new tab (file picker / path) |
 | `q`, `:q` | Close the current tab; quit when it is the last |
 | `Q`, `:qa` | Quit all tabs |
