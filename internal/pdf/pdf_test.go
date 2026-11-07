@@ -133,7 +133,8 @@ func TestRenderDimensions(t *testing.T) {
 		{"one pixel", 1, 1, 1, 1, 1, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			data, err := tools.RenderPage(context.Background(), RenderRequest{Path: path, Page: tc.page, WidthPixels: tc.width, HeightPixels: tc.height, Zoom: tc.zoom})
+			request := RenderRequest{Path: path, Page: tc.page, WidthPixels: tc.width, HeightPixels: tc.height, Zoom: tc.zoom}
+			data, err := tools.RenderPage(context.Background(), request)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -147,6 +148,14 @@ func TestRenderDimensions(t *testing.T) {
 			}
 			if w > int(float64(tc.width)*tc.zoom) || h > int(float64(tc.height)*tc.zoom) {
 				t.Fatalf("PNG %dx%d exceeds fit box", w, h)
+			}
+			info, err := tools.info(context.Background(), path, "", tc.page)
+			if err != nil {
+				t.Fatal(err)
+			}
+			scaledW, scaledH := ScaledPageSize(info.DocumentInfo, request)
+			if scaledW != w || scaledH != h {
+				t.Fatalf("ScaledPageSize = %dx%d; uncropped PNG = %dx%d", scaledW, scaledH, w, h)
 			}
 		})
 	}
@@ -178,6 +187,77 @@ func TestCroppedPageFit(t *testing.T) {
 				t.Fatalf("cropped PNG = %dx%d; want %dx%d", config.Width, config.Height, wantW, wantH)
 			}
 		})
+	}
+}
+
+func TestRenderCrop(t *testing.T) {
+	tools := installedTools(t)
+	path := samplePDF(t)
+	for _, page := range []int{1, 3} {
+		t.Run(strconv.Itoa(page), func(t *testing.T) {
+			request := RenderRequest{Path: path, Page: page, WidthPixels: 400, HeightPixels: 300, Zoom: 2}
+			full, err := tools.RenderPage(context.Background(), request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, tc := range []struct {
+				name                string
+				x, y, width, height int
+				wantW, wantH        int
+				wantError           bool
+			}{
+				{"top-left quarter", 0, 0, 150, 300, 150, 300, false},
+				{"past right and bottom", 250, 550, 100, 100, 50, 50, false},
+				{"negative origin", -10, -20, 100, 100, 90, 80, false},
+				{"full page", 0, 0, 300, 600, 300, 600, false},
+				{"oversized window", 0, 0, math.MaxInt, math.MaxInt, 300, 600, false},
+				{"zero crop", 200, 200, 0, 0, 300, 600, false},
+				{"past page", 300, 0, 50, 50, 0, 0, true},
+				{"entirely negative", -100, 0, 10, 10, 0, 0, true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					cropped := request
+					cropped.CropX, cropped.CropY = tc.x, tc.y
+					cropped.CropWidth, cropped.CropHeight = tc.width, tc.height
+					data, err := tools.RenderPage(context.Background(), cropped)
+					if tc.wantError {
+						if err == nil || data != nil {
+							t.Fatalf("empty crop = %d bytes, %v", len(data), err)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					config, err := png.DecodeConfig(bytes.NewReader(data))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if config.Width != tc.wantW || config.Height != tc.wantH {
+						t.Fatalf("cropped PNG = %dx%d; want %dx%d", config.Width, config.Height, tc.wantW, tc.wantH)
+					}
+					if tc.wantW == 300 && tc.wantH == 600 && !bytes.Equal(data, full) {
+						t.Fatal("full-page crop changed the uncropped PNG")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestScaledPageSizeInvalid(t *testing.T) {
+	for _, tc := range []struct {
+		info    DocumentInfo
+		request RenderRequest
+	}{
+		{DocumentInfo{}, RenderRequest{WidthPixels: 400, HeightPixels: 300, Zoom: 1}},
+		{DocumentInfo{PageWidthPoints: math.Inf(1), PageHeightPoints: 600}, RenderRequest{WidthPixels: 400, HeightPixels: 300, Zoom: 1}},
+		{DocumentInfo{PageWidthPoints: 300, PageHeightPoints: 600}, RenderRequest{WidthPixels: 400, HeightPixels: 300, Zoom: 0}},
+		{DocumentInfo{PageWidthPoints: 300, PageHeightPoints: 600}, RenderRequest{WidthPixels: 400, HeightPixels: 300, Zoom: math.Inf(1)}},
+	} {
+		if w, h := ScaledPageSize(tc.info, tc.request); w != 0 || h != 0 {
+			t.Errorf("invalid sizing request returned %dx%d", w, h)
+		}
 	}
 }
 

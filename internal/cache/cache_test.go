@@ -47,6 +47,26 @@ func TestGetRefreshesEvictionOrder(t *testing.T) {
 	}
 }
 
+func TestContainsDoesNotRefreshRecency(t *testing.T) {
+	c := cache.New(6)
+	if c.Contains(key(1)) {
+		t.Fatal("empty cache contains page 1")
+	}
+	c.Put(key(1), []byte("one"))
+	c.Put(key(2), []byte("two"))
+	if !c.Contains(key(1)) {
+		t.Fatal("stored page 1 is missing")
+	}
+	c.Put(key(3), []byte("tri"))
+	if c.Contains(key(1)) || !c.Contains(key(2)) || !c.Contains(key(3)) {
+		t.Fatal("Contains changed eviction order")
+	}
+	c.DropPath("/book.pdf")
+	if c.Contains(key(2)) || c.Contains(key(3)) {
+		t.Fatal("dropped pages are still present")
+	}
+}
+
 func TestOversizePutChangesNothing(t *testing.T) {
 	c := cache.New(6)
 	c.Put(key(1), []byte("one"))
@@ -128,13 +148,17 @@ func TestDropPathRemovesEveryRenderAndVersion(t *testing.T) {
 func TestKeySeparatesRenderSizesAndDocumentVersions(t *testing.T) {
 	c := cache.New(100)
 	base := key(1)
-	variants := []cache.Key{base, base, base, base, base, base, base}
+	variants := []cache.Key{base, base, base, base, base, base, base, base, base, base, base}
 	variants[1].Path = "/other.pdf"
 	variants[2].ModTimeUnixNano = 1
 	variants[3].Page = 2
 	variants[4].WidthPixels++
 	variants[5].HeightPixels++
 	variants[6].ZoomMilli++
+	variants[7].CropX++
+	variants[8].CropY++
+	variants[9].CropWidth++
+	variants[10].CropHeight++
 	for i, k := range variants {
 		c.Put(k, []byte{byte(i)})
 	}
@@ -192,6 +216,7 @@ func TestConcurrentGetPutAndDrop(t *testing.T) {
 					t.Errorf("concurrent byte count = %d", size)
 				}
 				_ = c.Len()
+				_ = c.Contains(k)
 			}
 		}(worker)
 	}

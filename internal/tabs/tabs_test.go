@@ -215,6 +215,57 @@ func TestPageLimitsAndReload(t *testing.T) {
 	}
 }
 
+func TestSetPageRestoresPositionAndViewSnapshot(t *testing.T) {
+	s := tabs.NewSet()
+	source := s.Open("/book.pdf", 10)
+	s.ZoomBy(source, 2)
+	s.Scroll(source, 0.4, 0.2)
+	duplicate := s.Duplicate(source)
+	s.SetPage(source, 6, 0.75)
+	view, ok := s.View(source)
+	if !ok || view != (tabs.View{Page: 6, Fit: tabs.Custom, Zoom: 2, ScrollY: 0.75}) {
+		t.Fatalf("page jump = %+v, %v", view, ok)
+	}
+	active(t, s, duplicate)
+	if got, ok := s.View(duplicate); !ok || got != (tabs.View{Page: 1, Fit: tabs.Custom, Zoom: 2, ScrollX: 0.4, ScrollY: 0.2}) {
+		t.Fatalf("page jump changed duplicate = %+v, %v", got, ok)
+	}
+	view.Page = 9
+	if got, _ := s.View(source); got.Page != 6 {
+		t.Fatal("changing returned view changed the tab")
+	}
+	s.Scroll(source, 0.3, 0)
+	s.SetPage(source, 6, 0.5)
+	if got, _ := s.View(source); got.ScrollX != 0.3 || got.ScrollY != 0.5 {
+		t.Fatalf("same-page jump = %+v", got)
+	}
+	for _, test := range []struct {
+		page       int
+		scroll     float64
+		wantPage   int
+		wantScroll float64
+	}{
+		{-3, -0.5, 1, 0},
+		{20, 2, 10, 1},
+		{4, math.Inf(-1), 4, 0},
+		{4, math.Inf(1), 4, 1},
+		{4, math.NaN(), 4, 0},
+	} {
+		s.SetPage(source, test.page, test.scroll)
+		if got, _ := s.View(source); got.Page != test.wantPage || got.ScrollY != test.wantScroll {
+			t.Fatalf("SetPage(%d, %g) = %+v", test.page, test.scroll, got)
+		}
+	}
+	before, _ := s.View(source)
+	s.SetPage(999, 2, 1)
+	if got, _ := s.View(source); got != before {
+		t.Fatal("unknown tab jump changed another tab")
+	}
+	if got, ok := s.View(999); ok || got != (tabs.View{}) {
+		t.Fatalf("unknown tab view = %+v, %v", got, ok)
+	}
+}
+
 func TestZoomFitAndScrollLimits(t *testing.T) {
 	s := tabs.NewSet()
 	id := s.Open("/book.pdf", 10)

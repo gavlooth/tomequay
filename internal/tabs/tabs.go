@@ -154,6 +154,15 @@ func (s *Set) Active() (*Tab, bool) {
 	return s.tabs[s.active], true
 }
 
+// View returns a copy of id's current view, or the zero view and false if the
+// tab does not exist. Changing the returned value does not change the tab.
+func (s *Set) View(id TabID) (View, bool) {
+	if i := s.index(id); i >= 0 {
+		return s.tabs[i].View, true
+	}
+	return View{}, false
+}
+
 // Tabs returns an ordered snapshot. Changing its tabs or views does not change
 // the set. Document pointers deliberately remain shared and are read-only.
 func (s *Set) Tabs() []Tab {
@@ -169,6 +178,22 @@ func (s *Set) Tabs() []Tab {
 func (s *Set) GoToPage(id TabID, page int) {
 	if i := s.index(id); i >= 0 {
 		setPage(s.tabs[i], page)
+	}
+}
+
+// SetPage jumps to page, clamped to the document's range, and sets vertical
+// scroll to a fraction of the available scroll distance, clamped to [0, 1].
+// NaN scroll positions become zero. A page change also resets horizontal
+// scrolling; jumping within the same page preserves horizontal scrolling.
+// The tab's zoom, fit mode, and the set's focus stay unchanged.
+func (s *Set) SetPage(id TabID, page int, scrollY float64) {
+	if i := s.index(id); i >= 0 {
+		tab := s.tabs[i]
+		setPage(tab, page)
+		if math.IsNaN(scrollY) {
+			scrollY = 0
+		}
+		tab.View.ScrollY = max(0, min(1, scrollY))
 	}
 }
 

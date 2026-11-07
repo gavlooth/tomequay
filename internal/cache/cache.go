@@ -4,8 +4,8 @@ package cache
 
 import "sync"
 
-// Key distinguishes a document version, page, and render size. Path must be
-// canonical so different spellings of one PDF share rendered pages.
+// Key distinguishes a document version, page, render size, and crop. Path must
+// be canonical so different spellings of one PDF share rendered pages.
 type Key struct {
 	Path            string
 	ModTimeUnixNano int64
@@ -13,6 +13,12 @@ type Key struct {
 	WidthPixels     int
 	HeightPixels    int
 	ZoomMilli       int
+	// Crop coordinates and size are pixels of the zoomed page. All zeros mean
+	// the whole page.
+	CropX      int
+	CropY      int
+	CropWidth  int
+	CropHeight int
 }
 
 type entry struct {
@@ -50,6 +56,14 @@ func (c *Cache) Get(k Key) ([]byte, bool) {
 	}
 	c.makeNewest(e)
 	return e.png, true
+}
+
+// Contains reports whether k is stored without changing its recency.
+func (c *Cache) Contains(k Key) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	_, ok := c.entries[k]
+	return ok
 }
 
 // Put stores png without copying. An item larger than the byte limit is ignored
