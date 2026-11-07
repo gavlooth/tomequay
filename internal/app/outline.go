@@ -2,9 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
-	"io"
-	"path/filepath"
 	"strings"
 
 	"terminal-pdf-reader/internal/keys"
@@ -229,45 +226,5 @@ func (m *model) outlineKey(k keys.Key) {
 		}
 		m.outline = nil
 		m.message = e.Title
-	}
-}
-
-func (m *model) drawOutline() {
-	p := m.outline
-	heading := "OUTLINE: " + filepath.Base(p.path)
-	if p.filter != "" {
-		heading += " /" + p.filter
-	}
-	m.text(0, 1, heading)
-	if p.loading {
-		m.text(1, 2, "loading outline")
-		return
-	}
-	height := m.size.Rows - 3
-	start := max(0, p.selected-height+1)
-	for i := range height {
-		index := start + i
-		if index >= len(p.filtered) {
-			break
-		}
-		e := p.entries[p.filtered[index]]
-		prefix, destination := "  ", fmt.Sprintf(" [page %d]", e.Page)
-		if index == p.selected {
-			prefix = "> "
-		}
-		if e.Page == 0 {
-			destination = " [no page]"
-			_, err := io.WriteString(m.screen.Writer(), "\x1b[2m")
-			m.noteOutput(err)
-		}
-		indent := strings.Repeat(" ", min(e.Depth, m.size.Columns/2)*2)
-		m.text(0, i+2, prefix+indent+e.Title+destination)
-		if e.Page == 0 {
-			_, err := io.WriteString(m.screen.Writer(), "\x1b[0m")
-			m.noteOutput(err)
-		}
-	}
-	if len(p.filtered) == 0 {
-		m.text(1, 2, "no matching outline titles")
 	}
 }

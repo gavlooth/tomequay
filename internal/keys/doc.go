@@ -22,6 +22,21 @@
 // whitespace. Internal and trailing spaces survive. Do not add shell quotes or
 // escapes: they become filename characters. No shell or filename expansion is
 // performed. Prefix a path whose first character is whitespace with ./.
+// The exact path % in :e % or :tabnew % emits DuplicateTab with Text "%"; the
+// caller reopens the current file. :tab split emits DuplicateTab with empty Text.
+//
+// TabList is reached with gb, :ls, :tabs, :buffers, or bare :b. With an argument,
+// :b N selects a one-based GoToTab Count and :b name emits GoToTabByName with the
+// trimmed name fragment in Text. PreviousUsedTab (gp or Ctrl-^) returns to the
+// last active tab. The terminal supplies Ctrl-^ as Key{Rune: '^', Ctrl: true}.
+//
+// MoveTab uses Count as an absolute zero-based position when Arg is zero,
+// including :tabmove 0. Arg '+' or '-' instead marks a relative displacement,
+// with Count carrying the signed value. Thus :tabmove -2 yields Count -2 and
+// Arg '-', while :tabmove +2 yields Count 2 and Arg '+'. g< and g> use the same
+// relative form with Count -1 and 1, or the signed typed count. Explicit +0 and
+// -0 stay relative no-ops. CloseOtherTabs is :tabonly. ToggleDark is zd/:dark,
+// and ToggleSidebar is gs/:sidebar. The caller performs all tab and view changes.
 //
 // Help is generated from the same normal-mode and command-line tables used for
 // decoding. HelpAction is the action for F1 and :help; its name avoids a Go name

@@ -31,6 +31,11 @@ func TestNormalInput(t *testing.T) {
 		{"last page", textKeys("G"), []Command{{Action: LastPage}}},
 		{"first page", textKeys("gg"), []Command{{Action: FirstPage}}},
 		{"tab target", textKeys("3gt"), []Command{{Action: GoToTab, Count: 3}}},
+		{"move left", textKeys("g<"), []Command{{Action: MoveTab, Count: -1, Arg: '-'}}},
+		{"move right", textKeys("g>"), []Command{{Action: MoveTab, Count: 1, Arg: '+'}}},
+		{"move several tabs left", textKeys("3g<"), []Command{{Action: MoveTab, Count: -3, Arg: '-'}}},
+		{"move several tabs right", textKeys("12g>"), []Command{{Action: MoveTab, Count: 12, Arg: '+'}}},
+		{"move count resets", textKeys("3g<g>"), []Command{{Action: MoveTab, Count: -3, Arg: '-'}, {Action: MoveTab, Count: 1, Arg: '+'}}},
 		{"bad prefix consumes unknown key", textKeys("gjk"), []Command{{Action: ScrollUp}}},
 		{"bad prefix resets count", textKeys("12gxj"), []Command{{Action: ScrollDown}}},
 		{"bad normal key resets count", textKeys("12xj"), []Command{{Action: ScrollDown}}},
@@ -77,6 +82,7 @@ func TestDefaultBindings(t *testing.T) {
 		{"gt", NextTab}, {"gT", PreviousTab}, {"gd", DuplicateTab},
 		{"o", OpenFile}, {"q", CloseTab}, {"Q", QuitAll},
 		{"n", SearchNext}, {"N", SearchPrevious}, {"r", Reload}, {"gO", Outline},
+		{"gb", TabList}, {"gp", PreviousUsedTab}, {"zd", ToggleDark}, {"gs", ToggleSidebar},
 	}
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
@@ -107,6 +113,7 @@ func TestDefaultBindings(t *testing.T) {
 		{Key{Rune: 'f', Ctrl: true}, FullPageDown}, {Key{Rune: 'b', Ctrl: true}, FullPageUp},
 		{Key{Rune: 'o', Ctrl: true}, JumpOlder}, {Key{Rune: 'i', Ctrl: true}, JumpNewer},
 		{Key{Rune: 'l', Ctrl: true}, Redraw},
+		{Key{Rune: '^', Ctrl: true}, PreviousUsedTab},
 	}
 	for _, test := range keyTests {
 		t.Run(keyText(test.key), func(t *testing.T) {
@@ -250,6 +257,23 @@ func TestParseCommandLine(t *testing.T) {
 		{":tab split", Command{Action: DuplicateTab}}, {":tab\t split ", Command{Action: DuplicateTab}},
 		{":help", Command{Action: HelpAction}}, {":outline", Command{Action: Outline}},
 		{":reload", Command{Action: Reload}}, {":mark a", Command{Action: SetMark, Arg: 'a'}},
+		{":ls", Command{Action: TabList}}, {":tabs", Command{Action: TabList}},
+		{":buffers", Command{Action: TabList}}, {":b", Command{Action: TabList}},
+		{":b 12", Command{Action: GoToTab, Count: 12}},
+		{":b  my file.pdf  ", Command{Action: GoToTabByName, Text: "my file.pdf"}},
+		{":e %", Command{Action: DuplicateTab, Text: "%"}},
+		{":e % ", Command{Action: OpenFile, Text: "% "}},
+		{":e ./%", Command{Action: OpenFile, Text: "./%"}},
+		{":tabnew %", Command{Action: DuplicateTab, Text: "%"}},
+		{":tabnew %  ", Command{Action: DuplicateTab, Text: "%"}},
+		{":tabmove 0", Command{Action: MoveTab}},
+		{":tabmove 3", Command{Action: MoveTab, Count: 3}},
+		{":tabmove +2", Command{Action: MoveTab, Count: 2, Arg: '+'}},
+		{":tabmove -2", Command{Action: MoveTab, Count: -2, Arg: '-'}},
+		{":tabmove +0", Command{Action: MoveTab, Arg: '+'}},
+		{":tabmove -0", Command{Action: MoveTab, Arg: '-'}},
+		{":tabonly", Command{Action: CloseOtherTabs}},
+		{":dark", Command{Action: ToggleDark}}, {":sidebar", Command{Action: ToggleSidebar}},
 	}
 	for _, test := range tests {
 		t.Run(test.line, func(t *testing.T) {
@@ -259,7 +283,7 @@ func TestParseCommandLine(t *testing.T) {
 			}
 		})
 	}
-	for _, line := range []string{":frobnicate", ":0", ":12 extra", ":9999999999999999999999999999", ":q extra", ":e", ":tab", ":tab dance", ":mark A", ":mark ab", ":", ""} {
+	for _, line := range []string{":frobnicate", ":0", ":12 extra", ":9999999999999999999999999999", ":q extra", ":e", ":tab", ":tab dance", ":mark A", ":mark ab", ":", "", ":b 0", ":b 9999999999999999999999999999", ":tabnew file.pdf", ":tabmove", ":tabmove +", ":tabmove --1", ":tabmove 1 2", ":tabmove 9999999999999999999999999999", ":tabonly extra"} {
 		t.Run("invalid "+line, func(t *testing.T) {
 			cmd, err := ParseCommandLine(line)
 			if err == nil || cmd != (Command{}) {
@@ -323,7 +347,7 @@ func TestHelpCoversActions(t *testing.T) {
 			t.Errorf("action %v has no help entry", action)
 		}
 	}
-	for _, text := range []string{"{N}G", "{N}gt", "m{a-z}", "'{a-z}", "''", "F1", "?", ":tab split", ":tabnew"} {
+	for _, text := range []string{"{N}G", "{N}gt", "m{a-z}", "'{a-z}", "''", "F1", "?", ":tab split", ":tabnew [%]", ":e {path|%}", "gb", "gp", "Ctrl-^", "g<", "g>", "zd", "gs", ":ls", ":tabs", ":buffers", ":b [N|name]", ":tabmove {N|+N|-N}", ":tabonly", ":dark", ":sidebar"} {
 		if !spellings[text] {
 			t.Errorf("missing help for %q", text)
 		}

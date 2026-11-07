@@ -27,6 +27,37 @@ type ResizeEvent struct{ Size Size }
 type KeyEvent struct{ Key keys.Key }
 type ErrorEvent struct{ Err error }
 
+// MouseKind describes a button, drag, or wheel action.
+type MouseKind int
+
+const (
+	MousePress MouseKind = iota
+	MouseRelease
+	MouseDrag
+	MouseWheelUp
+	MouseWheelDown
+	MouseWheelLeft
+	MouseWheelRight
+)
+
+// MouseButton identifies a button; wheel actions use ButtonNone.
+type MouseButton int
+
+const (
+	ButtonLeft MouseButton = iota
+	ButtonMiddle
+	ButtonRight
+	ButtonNone
+)
+
+// MouseEvent uses zero-based cell coordinates and preserves modifier keys.
+type MouseEvent struct {
+	Kind             MouseKind
+	Button           MouseButton
+	Column, Row      int
+	Shift, Alt, Ctrl bool
+}
+
 // GraphicsReplyEvent acknowledges a Kitty graphics command for an image ID.
 // OK is true only for the exact success message "OK".
 type GraphicsReplyEvent struct {
@@ -41,7 +72,7 @@ type SignalError struct{ Signal os.Signal }
 
 func (e *SignalError) Error() string { return "terminal: received " + e.Signal.String() }
 
-// Event is a KeyEvent, ResizeEvent, ErrorEvent, or GraphicsReplyEvent.
+// Event is a KeyEvent, MouseEvent, ResizeEvent, ErrorEvent, or GraphicsReplyEvent.
 // Close closes the event stream.
 type Event interface{}
 
@@ -51,6 +82,8 @@ const (
 	signalCloseWait = 300 * time.Millisecond
 	enterScreen     = "\x1b[?1049h\x1b[?25l"
 	leaveScreen     = "\x1b[0m\x1b[?25h\x1b[?1049l"
+	enableMouse     = "\x1b[?1000h\x1b[?1002h\x1b[?1006h"
+	disableMouse    = "\x1b[?1006l\x1b[?1002l\x1b[?1000l"
 )
 
 type lockedWriter struct {
@@ -100,13 +133,36 @@ type Terminal struct {
 	once     sync.Once
 	closeErr error
 	sizeMu   sync.Mutex
+	mouse    bool // protected by writer.mu
+}
+
+// SetMouse enables or disables button, button-held motion, and SGR mouse
+// reporting. Open enables reporting by default. Calls do not use tmux
+// passthrough: these modes belong to the pane, not the outer terminal.
+func (t *Terminal) SetMouse(enabled bool) error {
+	t.writer.mu.Lock()
+	defer t.writer.mu.Unlock()
+	if t.writer.closed {
+		return os.ErrClosed
+	}
+	if t.mouse == enabled {
+		return nil
+	}
+	command := disableMouse
+	if enabled {
+		command = enableMouse
+	}
+	// Remember an enable attempt so Close also resets partially written modes.
+	t.mouse = enabled
+	_, err := t.writer.buffer.WriteString(command)
+	return errors.Join(err, t.writer.buffer.Flush())
 }
 
 // InTmux reports whether output must use tmux DCS passthrough.
 func InTmux() bool { return os.Getenv("TMUX") != "" }
 
-// Open uses stdin/stdout, enables raw mode and the alternate screen, and starts
-// input and signal handling. It restores all acquired state on startup failure.
+// Open uses stdin/stdout, enables raw mode, the alternate screen, and mouse
+// reporting, and starts input and signal handling. Startup failure restores state.
 func Open() (_ *Terminal, err error) {
 	input, output := int(os.Stdin.Fd()), int(os.Stdout.Fd())
 	if !term.IsTerminal(input) || !term.IsTerminal(output) {
@@ -129,7 +185,7 @@ func Open() (_ *Terminal, err error) {
 	started := false
 	defer func() {
 		if !started {
-			_ = t.writer.command(leaveScreen)
+			_ = t.writer.command(disableMouse + leaveScreen)
 			_ = term.Restore(input, original)
 			for _, fd := range t.wake {
 				if fd >= 0 {
@@ -143,6 +199,9 @@ func Open() (_ *Terminal, err error) {
 	}
 	if err := t.writer.command(enterScreen); err != nil {
 		return nil, fmt.Errorf("terminal: enter screen: %w", err)
+	}
+	if err := t.SetMouse(true); err != nil {
+		return nil, fmt.Errorf("terminal: enable mouse reporting: %w", err)
 	}
 	signal.Notify(t.signals, syscall.SIGWINCH, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 	t.workers.Add(2)
@@ -161,8 +220,8 @@ func Open() (_ *Terminal, err error) {
 	return t, nil
 }
 
-// Close restores screen, cursor, and tty mode, and stops input and signal
-// handling. It is safe to call repeatedly, including from a deferred function.
+// Close restores mouse reporting, screen, cursor, and tty mode, and stops input
+// and signal handling. It is safe to call repeatedly, including from a defer.
 func (t *Terminal) Close() error {
 	t.shutdown()
 	<-t.stopped
@@ -175,11 +234,16 @@ func (t *Terminal) shutdown() {
 		signal.Stop(t.signals)
 		_, _ = unix.Write(t.wake[1], []byte{1})
 		t.writer.mu.Lock()
+		var mouseErr error
+		if t.mouse {
+			_, mouseErr = t.writer.buffer.WriteString(disableMouse)
+			t.mouse = false
+		}
 		_, writeErr := t.writer.buffer.WriteString(leaveScreen)
 		flushErr := t.writer.buffer.Flush()
 		t.writer.closed = true
 		t.writer.mu.Unlock()
-		t.closeErr = errors.Join(writeErr, flushErr, term.Restore(t.input, t.original))
+		t.closeErr = errors.Join(mouseErr, writeErr, flushErr, term.Restore(t.input, t.original))
 	})
 }
 

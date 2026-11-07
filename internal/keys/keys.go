@@ -82,11 +82,20 @@ const (
 	Outline
 	HelpAction
 	NewTab
+	TabList
+	PreviousUsedTab
+	GoToTabByName
+	MoveTab
+	CloseOtherTabs
+	ToggleDark
+	ToggleSidebar
 	OpenCommandLine
 )
 
-// Command is a completed input. Count is zero when no count was typed.
-// Arg is a lowercase mark letter. Text holds a path or search query.
+// Command is a completed input. Count is zero when no count was typed, except
+// MoveTab always provides a destination or displacement. Arg is a mark letter
+// or a MoveTab sign: zero means an absolute zero-based position, '+' or '-'
+// means a relative signed Count. Text holds a path, search query, or tab name.
 type Command struct {
 	Action Action
 	Count  int
@@ -118,6 +127,8 @@ type binding struct {
 	description string
 	prompt      Mode
 	mark        bool
+	countSign   int
+	arg         rune
 }
 
 func runes(s string) [2]Key {
@@ -166,6 +177,13 @@ var bindings = [...]binding{
 	{sequence: runes("gt"), action: NextTab, counted: GoToTab, description: "Next tab, or tab N with a count"},
 	{sequence: runes("gT"), action: PreviousTab, description: "Previous tab"},
 	{sequence: runes("gd"), action: DuplicateTab, description: "Duplicate the current tab with its own view"},
+	{sequence: runes("gb"), action: TabList, description: "List open tabs"},
+	{sequence: runes("gp"), action: PreviousUsedTab, description: "Return to the last active tab"},
+	{sequence: [2]Key{{Rune: '^', Ctrl: true}}, action: PreviousUsedTab, description: "Return to the last active tab"},
+	{sequence: runes("g<"), action: MoveTab, countSign: -1, arg: '-', description: "Move the tab left by N positions, or one without a count"},
+	{sequence: runes("g>"), action: MoveTab, countSign: 1, arg: '+', description: "Move the tab right by N positions, or one without a count"},
+	{sequence: runes("zd"), action: ToggleDark, description: "Toggle dark page colors"},
+	{sequence: runes("gs"), action: ToggleSidebar, description: "Toggle the sidebar"},
 	{sequence: runes("o"), action: OpenFile, description: "Open a PDF in a new tab using the file picker"},
 	{sequence: runes("q"), action: CloseTab, description: "Close the current tab; quit if it is the last"},
 	{sequence: runes("Q"), action: QuitAll, description: "Quit all tabs"},
@@ -263,7 +281,13 @@ func (d *Decoder) Feed(k Key) (Command, bool) {
 				return Command{}, false
 			}
 		}
-		cmd := Command{Action: b.action, Count: d.count}
+		cmd := Command{Action: b.action, Count: d.count, Arg: b.arg}
+		if b.countSign != 0 {
+			if cmd.Count == 0 {
+				cmd.Count = 1
+			}
+			cmd.Count *= b.countSign
+		}
 		if cmd.Count != 0 && b.counted != NoAction {
 			cmd.Action = b.counted
 		}

@@ -15,6 +15,9 @@ const (
 	markArgument
 	splitArgument
 	pageArgument
+	tabArgument
+	newTabArgument
+	moveArgument
 )
 
 type lineBinding struct {
@@ -26,17 +29,25 @@ type lineBinding struct {
 }
 
 var lineBindings = [...]lineBinding{
-	{"e", "e {path}", OpenFile, pathArgument, "Open a PDF in a new tab; path is literal, without quotes or escapes"},
+	{"e", "e {path|%}", OpenFile, pathArgument, "Open a PDF in a new tab; literal path, except % reopens the current file independently"},
 	{"", "{N}", GoToPage, pageArgument, "Go to page N"},
 	{"q", "q", CloseTab, noArgument, "Close the current tab; quit if it is the last"},
 	{"qa", "qa", QuitAll, noArgument, "Quit all tabs"},
-	{"tabnew", "tabnew", NewTab, noArgument, "Open a new tab"},
+	{"tabnew", "tabnew [%]", NewTab, newTabArgument, "Open a new tab; :tabnew % reopens the current file independently"},
 	{"tabclose", "tabclose", CloseTab, noArgument, "Close the current tab"},
 	{"tab", "tab split", DuplicateTab, splitArgument, "Duplicate the current tab with its own view"},
 	{"help", "help", HelpAction, noArgument, "Show key help"},
 	{"outline", "outline", Outline, noArgument, "Open the document outline"},
 	{"reload", "reload", Reload, noArgument, "Reload the file"},
 	{"mark", "mark {a-z}", SetMark, markArgument, "Set a lowercase letter mark"},
+	{"ls", "ls", TabList, noArgument, "List open tabs"},
+	{"tabs", "tabs", TabList, noArgument, "List open tabs"},
+	{"buffers", "buffers", TabList, noArgument, "List open tabs"},
+	{"b", "b [N|name]", GoToTabByName, tabArgument, "Select tab N or a name fragment; no argument lists tabs"},
+	{"tabmove", "tabmove {N|+N|-N}", MoveTab, moveArgument, "Move the tab to zero-based position N, or by signed displacement"},
+	{"tabonly", "tabonly", CloseOtherTabs, noArgument, "Close all other tabs"},
+	{"dark", "dark", ToggleDark, noArgument, "Toggle dark page colors"},
+	{"sidebar", "sidebar", ToggleSidebar, noArgument, "Toggle the sidebar"},
 }
 
 // ParseCommandLine accepts a line with or without its initial colon. For :e,
@@ -45,6 +56,9 @@ var lineBindings = [...]lineBinding{
 // are literal filename characters, not shell syntax; no expansion is performed.
 // Thus :e my file.pdf opens "my file.pdf", not two arguments. A path beginning
 // with whitespace must be written with a directory prefix, such as ./ my.pdf.
+// A path exactly equal to % instead emits DuplicateTab with Text "%".
+// MoveTab uses a zero-based absolute Count with Arg zero, or a signed relative
+// Count with Arg '+' or '-'. For example :tabmove -2 uses Count -2 and Arg '-'.
 func ParseCommandLine(line string) (Command, error) {
 	line = strings.TrimLeftFunc(line, unicode.IsSpace)
 	line = strings.TrimPrefix(line, ":")
@@ -72,6 +86,41 @@ func ParseCommandLine(line string) (Command, error) {
 				return Command{}, fmt.Errorf("command %q needs a path", name)
 			}
 			cmd.Text = argument
+			if argument == "%" {
+				cmd.Action = DuplicateTab
+			}
+		case newTabArgument:
+			argument = strings.TrimSpace(argument)
+			if argument == "%" {
+				cmd.Action, cmd.Text = DuplicateTab, "%"
+			} else if argument != "" {
+				return Command{}, fmt.Errorf("command %q accepts only %% or no argument", name)
+			}
+		case tabArgument:
+			argument = strings.TrimSpace(argument)
+			if argument == "" {
+				cmd.Action = TabList
+			} else if decimal(argument) {
+				number, err := strconv.Atoi(argument)
+				if err != nil || number < 1 {
+					return Command{}, fmt.Errorf("invalid tab number %q: use a positive tab number", argument)
+				}
+				cmd.Action, cmd.Count = GoToTab, number
+			} else {
+				cmd.Text = argument
+			}
+		case moveArgument:
+			argument = strings.TrimSpace(argument)
+			digits := argument
+			if len(digits) > 0 && (digits[0] == '+' || digits[0] == '-') {
+				cmd.Arg = rune(digits[0])
+				digits = digits[1:]
+			}
+			position, err := strconv.Atoi(argument)
+			if !decimal(digits) || err != nil {
+				return Command{}, fmt.Errorf("invalid tab position %q: use N, +N, or -N", argument)
+			}
+			cmd.Count = position
 		case markArgument:
 			argument = strings.TrimSpace(argument)
 			if len(argument) != 1 || argument[0] < 'a' || argument[0] > 'z' {

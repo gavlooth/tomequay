@@ -25,6 +25,7 @@ type ptyReport struct {
 	Key      keys.Key
 	Error    string
 	Graphics GraphicsReplyEvent
+	Mouse    MouseEvent
 }
 
 // This subprocess keeps test-runner stdin/stdout and signal handlers untouched.
@@ -47,8 +48,16 @@ func TestTerminalPTYHelper(t *testing.T) {
 			_ = report.Encode(ptyReport{Kind: "resize", Size: event.Size})
 		case GraphicsReplyEvent:
 			_ = report.Encode(ptyReport{Kind: "graphics", Graphics: event})
+		case MouseEvent:
+			_ = report.Encode(ptyReport{Kind: "mouse", Mouse: event})
 		case KeyEvent:
 			_ = report.Encode(ptyReport{Kind: "key", Key: event.Key})
+			if event.Key.Rune == 'd' || event.Key.Rune == 'e' {
+				if err := tty.SetMouse(event.Key.Rune == 'e'); err != nil {
+					t.Fatal(err)
+				}
+				_ = report.Encode(ptyReport{Kind: "mouse-mode"})
+			}
 			if event.Key.Rune == 'i' {
 				ignoreSignals = true
 			}
@@ -228,7 +237,7 @@ func (s *ptySession) wait(t *testing.T, wantFailure bool) {
 		s.mu.Lock()
 		output := string(s.output)
 		s.mu.Unlock()
-		if strings.Contains(output, leaveScreen) {
+		if strings.Contains(output, disableMouse+leaveScreen) {
 			if !strings.Contains(output, enterScreen) {
 				t.Fatalf("missing alternate-screen entry in %q", output)
 			}
@@ -240,6 +249,57 @@ func (s *ptySession) wait(t *testing.T, wantFailure bool) {
 			t.Fatal("missing screen restoration")
 		}
 	}
+}
+
+func (s *ptySession) mouseModes(t *testing.T, count int) {
+	t.Helper()
+	s.mu.Lock()
+	output := string(s.output)
+	s.mu.Unlock()
+	for _, mode := range []string{"1000", "1002", "1006"} {
+		for _, final := range []string{"h", "l"} {
+			sequence := "\x1b[?" + mode + final
+			if got := strings.Count(output, sequence); got != count {
+				t.Fatalf("mouse mode %q written %d times, want %d: %q", sequence, got, count, output)
+			}
+			if strings.Contains(output, "\x1bPtmux;\x1b"+sequence) {
+				t.Fatalf("mouse mode unexpectedly uses tmux passthrough: %q", output)
+			}
+		}
+	}
+}
+
+func TestPTYMouseReporting(t *testing.T) {
+	for _, tmux := range []bool{false, true} {
+		t.Run(fmt.Sprintf("tmux=%t", tmux), func(t *testing.T) {
+			s := startPTY(t, unix.Winsize{Col: 100, Row: 30, Xpixel: 900, Ypixel: 630}, tmux, false)
+			s.next(t, "opened")
+			_, _ = io.WriteString(s.master, "\x1b[<60;345;256Mq")
+			want := MouseEvent{Kind: MouseDrag, Button: ButtonLeft, Column: 344, Row: 255, Shift: true, Alt: true, Ctrl: true}
+			if got := s.next(t, "mouse").Mouse; got != want {
+				t.Fatalf("mouse event = %#v, want %#v", got, want)
+			}
+			s.next(t, "key")
+			s.next(t, "closed")
+			s.wait(t, false)
+			s.mouseModes(t, 1)
+		})
+	}
+}
+
+func TestPTYMouseToggle(t *testing.T) {
+	s := startPTY(t, unix.Winsize{Col: 100, Row: 30, Xpixel: 900, Ypixel: 630}, false, false)
+	s.next(t, "opened")
+	for _, key := range []string{"d", "d", "e", "e"} {
+		_, _ = io.WriteString(s.master, key)
+		s.next(t, "key")
+		s.next(t, "mouse-mode")
+	}
+	_, _ = io.WriteString(s.master, "q")
+	s.next(t, "key")
+	s.next(t, "closed")
+	s.wait(t, false)
+	s.mouseModes(t, 2)
 }
 
 func TestPTYLifecycleAndResize(t *testing.T) {
@@ -326,11 +386,12 @@ func TestPTYRestoresOnPanicAndSignals(t *testing.T) {
 				s.next(t, "closed")
 			}
 			s.wait(t, cause == "panic")
+			s.mouseModes(t, 1)
 			if cause != "panic" {
 				s.mu.Lock()
 				output := string(s.output)
 				s.mu.Unlock()
-				if !strings.Contains(output, "signal-cleanup"+leaveScreen) {
+				if !strings.Contains(output, "signal-cleanup"+disableMouse+leaveScreen) {
 					t.Fatalf("writer unavailable before signal restoration: %q", output)
 				}
 			}
@@ -348,4 +409,5 @@ func TestPTYSignalFallback(t *testing.T) {
 	}
 	s.next(t, "closed")
 	s.wait(t, false)
+	s.mouseModes(t, 1)
 }

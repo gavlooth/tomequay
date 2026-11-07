@@ -96,7 +96,7 @@ func parse(state parserState, input []byte, timeout bool) (parserState, []Event)
 				continue
 			case '[', 'O':
 				end := 2
-				for end < len(text) && (text[end] < 0x40 || text[end] > 0x7e) {
+				for end < len(text) && text[end] != '\x1b' && (text[end] < 0x40 || text[end] > 0x7e) {
 					end++
 				}
 				if end == len(text) {
@@ -108,6 +108,11 @@ func parse(state parserState, input []byte, timeout bool) (parserState, []Event)
 					state.pending = text
 					return state, events
 				}
+				if text[end] == '\x1b' {
+					// A fresh escape abandons an incomplete report, not the next key.
+					text = text[end:]
+					continue
+				}
 				sequence := text[2 : end+1]
 				if text[1] == '[' && sequence == "M" {
 					// Legacy X10 mouse reports have three bytes after CSI M.
@@ -118,7 +123,14 @@ func parse(state parserState, input []byte, timeout bool) (parserState, []Event)
 					text = text[end+4:]
 					continue
 				}
+				mouseReport := text[1] == '[' && strings.HasPrefix(sequence, "<")
 				text = text[end+1:]
+				if mouseReport {
+					if mouse, ok := parseMouse(sequence); ok {
+						events = append(events, mouse)
+					}
+					continue
+				}
 				if sequence == "200~" {
 					state.paste = true
 					continue
@@ -152,6 +164,8 @@ func parse(state parserState, input []byte, timeout bool) (parserState, []Event)
 				emit(keys.Key{Special: keys.Tab})
 			case 10, 13:
 				emit(keys.Key{Special: keys.Enter})
+			case 0x1e:
+				emit(keys.Key{Rune: '^', Ctrl: true})
 			default:
 				if b >= 1 && b <= 26 {
 					emit(keys.Key{Rune: rune('a' + b - 1), Ctrl: true})
@@ -179,6 +193,66 @@ func suffixPrefix(text, delimiter string) string {
 		}
 	}
 	return ""
+}
+
+func parseMouse(sequence string) (MouseEvent, bool) {
+	event := MouseEvent{Button: ButtonNone}
+	final := sequence[len(sequence)-1]
+	if final != 'M' && final != 'm' {
+		return event, false
+	}
+	button, position, ok := strings.Cut(sequence[1:len(sequence)-1], ";")
+	if !ok {
+		return event, false
+	}
+	column, row, ok := strings.Cut(position, ";")
+	if !ok {
+		return event, false
+	}
+	code, eb := mouseNumber(button)
+	x, ex := mouseNumber(column)
+	y, ey := mouseNumber(row)
+	if !eb || !ex || !ey || code > 127 || x == 0 || y == 0 {
+		return event, false
+	}
+	event.Column, event.Row = x-1, y-1
+	event.Shift, event.Alt, event.Ctrl = code&4 != 0, code&8 != 0, code&16 != 0
+	if code&64 != 0 {
+		if final == 'm' || code&32 != 0 {
+			return MouseEvent{}, false
+		}
+		event.Kind = MouseWheelUp + MouseKind(code&3)
+		return event, true
+	}
+	event.Button = MouseButton(code & 3)
+	switch {
+	case final == 'm':
+		if code&32 != 0 {
+			return MouseEvent{}, false
+		}
+		event.Kind = MouseRelease
+	case code&32 != 0:
+		event.Kind = MouseDrag
+	default:
+		if event.Button == ButtonNone {
+			return MouseEvent{}, false
+		}
+		event.Kind = MousePress
+	}
+	return event, true
+}
+
+func mouseNumber(text string) (int, bool) {
+	if text == "" {
+		return 0, false
+	}
+	for i := range len(text) {
+		if text[i] < '0' || text[i] > '9' {
+			return 0, false
+		}
+	}
+	number, err := strconv.Atoi(text)
+	return number, err == nil
 }
 
 func parseGraphicsReply(body string) (GraphicsReplyEvent, bool) {

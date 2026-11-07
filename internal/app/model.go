@@ -121,6 +121,7 @@ type model struct {
 	images         images
 	screen         screen
 	size           terminal.Size
+	theme          Theme
 	message        string
 	quit, help     bool
 	helpOffset     int
@@ -160,7 +161,7 @@ func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options
 	}
 	m := &model{tabs: tabs.NewSet(), states: make(map[tabs.TabID]*tabState), docs: make(map[string]*document),
 		tools: tools, toolErr: toolErr, cache: cache.New(opts.CacheBytes),
-		screen: s, images: out, size: s.Size(), results: make(chan renderResult, 8), searchResults: make(chan searchResult, 8),
+		screen: s, images: out, size: s.Size(), theme: DefaultTheme(), results: make(chan renderResult, 8), searchResults: make(chan searchResult, 8),
 		outlineResults: make(chan outlineResult, 8),
 		imageIDs:       make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
 	m.recentFile, m.recent = loadRecent()
