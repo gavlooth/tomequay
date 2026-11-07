@@ -273,6 +273,8 @@ func TestParseCommandLine(t *testing.T) {
 		{":tabmove +0", Command{Action: MoveTab, Arg: '+'}},
 		{":tabmove -0", Command{Action: MoveTab, Arg: '-'}},
 		{":tabonly", Command{Action: CloseOtherTabs}},
+		{":bn", Command{Action: NextTab}}, {":tabnext", Command{Action: NextTab}},
+		{":bp", Command{Action: PreviousTab}}, {":tabp", Command{Action: PreviousTab}},
 		{":dark", Command{Action: ToggleDark}}, {":sidebar", Command{Action: ToggleSidebar}},
 	}
 	for _, test := range tests {
