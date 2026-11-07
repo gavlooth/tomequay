@@ -20,7 +20,7 @@ func (m *model) text(x, y int, s string) {
 func (m *model) draw() error {
 	w := m.screen.Writer()
 	active, _ := m.tabs.Active()
-	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil && m.passwordFor == nil {
+	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil && m.historyPanel == nil && m.passwordFor == nil {
 		m.ensureUpload()
 	}
 	m.drawTabs()
@@ -33,7 +33,7 @@ func (m *model) draw() error {
 	switch {
 	case m.size.Columns < 20 || m.size.Rows < 8:
 		next.kind = smallFrame
-	case m.help || m.picker != nil || m.outline != nil || m.tabList != nil:
+	case m.help || m.picker != nil || m.outline != nil || m.tabList != nil || m.historyPanel != nil:
 		next.kind = overlayFrame
 		next.sidebar = 0
 	case m.passwordFor == nil && len(m.currentPNG) > 0:
@@ -70,6 +70,8 @@ func (m *model) draw() error {
 				m.drawOutline()
 			} else if m.tabList != nil {
 				m.drawTabList()
+			} else if m.historyPanel != nil {
+				m.drawHistory()
 			} else {
 				m.drawPicker()
 			}
@@ -152,6 +154,8 @@ func (m *model) modeLabel() (string, RGB) {
 		return "OUTLINE", m.theme.Blue
 	case m.tabList != nil:
 		return "TABS", m.theme.Blue
+	case m.historyPanel != nil:
+		return "HISTORY", m.theme.Blue
 	case m.picker != nil:
 		return "PICKER", m.theme.Green
 	case m.decoder.Mode() == keys.Search:
@@ -179,7 +183,9 @@ func (m *model) promptText() (string, bool) {
 		return "/" + m.outline.filter, true
 	case m.tabList != nil && m.tabList.filtering:
 		return "/" + m.tabList.filter, true
-	case m.decoder.Mode() != keys.Normal && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil:
+	case m.historyPanel != nil && m.historyPanel.filtering:
+		return "/" + m.historyPanel.filter, true
+	case m.decoder.Mode() != keys.Normal && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil && m.historyPanel == nil:
 		return m.decoder.Pending(), true
 	default:
 		return "", false
@@ -367,6 +373,7 @@ var helpGroups = map[keys.Action]string{
 	keys.SetMark: "Marks", keys.JumpToMark: "Marks", keys.JumpBack: "Marks", keys.JumpOlder: "Marks", keys.JumpNewer: "Marks",
 	keys.OpenFile: "Files", keys.QuitAll: "Files", keys.Reload: "Files", keys.Redraw: "Files", keys.Outline: "Files",
 	keys.HelpAction: "Files", keys.OpenCommandLine: "Files",
+	keys.History: "Files",
 }
 
 func groupedHelp() []helpRow {

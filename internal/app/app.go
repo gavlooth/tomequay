@@ -21,7 +21,9 @@ func Run(ctx context.Context, opts Options) (err error) {
 	tools, toolErr := pdf.FindTools()
 	m := newModel(t, imageout.New(t.Writer(), terminal.InTmux()), tools, toolErr, opts)
 	m.ctx = ctx
+	defer m.closeFuzzy()
 	defer func() {
+		m.saveHistory(true)
 		m.stopWorkers()
 		// Delete only this reader's IDs, before the terminal leaves alternate screen.
 		for k := range m.imageIDs {
@@ -31,7 +33,7 @@ func Run(ctx context.Context, opts Options) (err error) {
 		err = errors.Join(err, m.outputErr, writeErr, t.Flush())
 	}()
 	for _, path := range opts.Paths {
-		m.open(path, max(1, opts.Page), "")
+		m.open(path, opts.Page, "")
 	}
 	if _, ok := m.tabs.Active(); !ok && m.passwordFor == nil {
 		m.showPicker()
@@ -48,6 +50,9 @@ func Run(ctx context.Context, opts Options) (err error) {
 		m.prepareRender()
 		if err := m.draw(); err != nil {
 			return err
+		}
+		if m.runQueuedFuzzy() {
+			continue
 		}
 		redraw := false
 		for !redraw && !m.quit {
@@ -105,6 +110,7 @@ func Run(ctx context.Context, opts Options) (err error) {
 				m.uploadExpired(now)
 				redraw = true
 			case <-ticker.C:
+				m.saveHistory(false)
 				redraw = m.pollFiles()
 			}
 		}

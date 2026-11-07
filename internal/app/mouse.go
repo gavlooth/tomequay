@@ -21,12 +21,14 @@ type pageDrag struct {
 }
 
 type rowClick struct {
-	picker *picker
-	index  int
-	at     time.Time
+	picker  *picker
+	history *historyView
+	index   int
+	at      time.Time
 }
 
 func (m *model) mouse(e terminal.MouseEvent) {
+	defer m.recordHistory()
 	if e.Kind == terminal.MouseRelease {
 		m.drag = nil
 		return
@@ -47,7 +49,7 @@ func (m *model) mouse(e terminal.MouseEvent) {
 			}
 			return
 		}
-		if m.picker != nil || m.outline != nil || m.tabList != nil {
+		if m.picker != nil || m.outline != nil || m.tabList != nil || m.historyPanel != nil {
 			key := keys.Key{Special: keys.Up}
 			if down {
 				key.Special = keys.Down
@@ -82,6 +84,7 @@ func (m *model) mouse(e terminal.MouseEvent) {
 			case terminal.ButtonLeft:
 				m.tabs.Focus(hit.id)
 				m.picker, m.outline, m.tabList, m.help = nil, nil, nil, false
+				m.historyPanel = nil
 			case terminal.ButtonMiddle:
 				m.closeTab(hit.id)
 				if m.tabList != nil {
@@ -97,7 +100,7 @@ func (m *model) mouse(e terminal.MouseEvent) {
 	if m.help {
 		return
 	}
-	if m.tabList != nil || m.outline != nil || m.picker != nil {
+	if m.tabList != nil || m.outline != nil || m.picker != nil || m.historyPanel != nil {
 		if e.Kind != terminal.MousePress {
 			return
 		}
@@ -110,6 +113,21 @@ func (m *model) mouse(e terminal.MouseEvent) {
 			return
 		}
 		switch {
+		case m.historyPanel != nil:
+			p := m.historyPanel
+			index := max(0, p.selected-height+1) + e.Row - 2
+			if index >= len(p.filtered) {
+				return
+			}
+			p.selected = index
+			now := time.Now()
+			if c := m.lastClick; c != nil && c.history == p && c.index == index && now.Sub(c.at) <= 400*time.Millisecond {
+				p.filtering = false
+				m.historyKey(keys.Key{Special: keys.Enter})
+				m.lastClick = nil
+			} else {
+				m.lastClick = &rowClick{history: p, index: index, at: now}
+			}
 		case m.tabList != nil:
 			p := m.tabList
 			index := max(0, p.selected-height+1) + e.Row - 2

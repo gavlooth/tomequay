@@ -9,11 +9,19 @@ import (
 	"os"
 
 	"terminal-pdf-reader/internal/app"
+	"terminal-pdf-reader/internal/fzf"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }
 
 func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "--preview-page" {
+		if err := fzf.Preview(context.Background(), args[1:], stdout); err != nil {
+			fmt.Fprintln(stderr, "pdfr preview:", err)
+			return 1
+		}
+		return 0
+	}
 	flags := flag.NewFlagSet("pdfr", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	cacheMB := flags.Int64("cache-mb", 128, "PNG cache limit in MiB (0 disables caching)")
@@ -40,7 +48,13 @@ func run(args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, "pdfr: --cache-mb is out of range")
 		return 2
 	}
-	if err := app.Run(context.Background(), app.Options{Paths: flags.Args(), Page: *page, CacheBytes: *cacheMB * 1024 * 1024}); err != nil {
+	initialPage := 0
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "page" {
+			initialPage = *page
+		}
+	})
+	if err := app.Run(context.Background(), app.Options{Paths: flags.Args(), Page: initialPage, CacheBytes: *cacheMB * 1024 * 1024}); err != nil {
 		fmt.Fprintln(stderr, "pdfr:", err)
 		return 1
 	}

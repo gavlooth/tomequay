@@ -23,6 +23,13 @@
 // exceeding 4096 bytes are ignored. Upload matching, timeouts, and retries belong
 // to the application event loop, not this package.
 //
+// Suspend pauses that same stdin reader, disables mouse reports, leaves the
+// alternate screen, and restores cooked mode before a foreground tty program
+// runs. Resume restores raw mode and the alternate screen before releasing the
+// reader. The app must finish pending graphics replies before Suspend, then
+// redraw and re-upload its image on Resume. In tmux, popup pickers do not suspend
+// the reader or leave the screen; graphics replies continue through Events.
+//
 // Open enables xterm button reporting (1000), button-held drag motion (1002),
 // and SGR mouse encoding (1006). MouseEvent reports presses, releases, drags,
 // and vertical or horizontal wheel movement with zero-based cell coordinates

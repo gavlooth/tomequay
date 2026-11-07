@@ -90,6 +90,11 @@ const (
 	ToggleDark
 	ToggleSidebar
 	OpenCommandLine
+	History
+	FuzzyFiles
+	FuzzyTabs
+	FuzzyOutline
+	FuzzyGrep
 )
 
 // Command is a completed input. Count is zero when no count was typed, except
@@ -186,6 +191,11 @@ var bindings = [...]binding{
 	{sequence: runes("g>"), action: MoveTab, countSign: 1, arg: '+', description: "Move the tab right by N positions, or one without a count"},
 	{sequence: runes("zd"), action: ToggleDark, description: "Toggle dark page colors"},
 	{sequence: runes("gs"), action: ToggleSidebar, description: "Toggle the sidebar"},
+	{sequence: runes("gh"), action: History, description: "Open reading history"},
+	{sequence: [2]Key{{Rune: 'p', Ctrl: true}}, action: FuzzyFiles, description: "Find PDFs with fzf; Tab selects several"},
+	{sequence: runes("gl"), action: FuzzyTabs, description: "Find an open tab with fzf"},
+	{sequence: runes("go"), action: FuzzyOutline, description: "Find an outline section with fzf"},
+	{sequence: runes("g/"), action: FuzzyGrep, prompt: Search, description: "Search page text and filter matching lines with fzf"},
 	{sequence: runes("o"), action: OpenFile, description: "Open a PDF in a new tab using the file picker"},
 	{sequence: runes("q"), action: CloseTab, description: "Close the current tab; quit if it is the last"},
 	{sequence: runes("Q"), action: QuitAll, description: "Quit all tabs"},
@@ -218,14 +228,19 @@ func (b binding) matchesSecond(k Key) bool {
 // Decoder translates keys on one event-loop goroutine. Its zero value is ready
 // to use. It does not read the terminal or use timers.
 type Decoder struct {
-	mode         Mode
-	prefix       Key
-	digits       []byte
-	count        int
-	countTooBig  bool
-	prompt       []rune
-	promptStart  rune
-	searchAction Action
+	mode           Mode
+	prefix         Key
+	digits         []byte
+	count          int
+	countTooBig    bool
+	prompt         []rune
+	promptStart    rune
+	searchAction   Action
+	commandHistory []string
+	searchHistory  []string
+	walkPrefix     []rune
+	walkIndex      int
+	walking        bool
 }
 
 func NewDecoder() *Decoder { return &Decoder{} }
@@ -314,8 +329,29 @@ func (d *Decoder) Feed(k Key) (Command, bool) {
 }
 
 func (d *Decoder) feedPrompt(k Key) (Command, bool) {
+	if k.Special == Up || k.Special == Down || k.Ctrl && (k.Rune == 'p' || k.Rune == 'n') {
+		d.walkHistory(k.Special == Up || k.Ctrl && k.Rune == 'p')
+		return Command{}, false
+	}
+	if k.Ctrl {
+		switch k.Rune {
+		case 'u':
+			d.prompt = d.prompt[:0]
+			d.walking = false
+		case 'w':
+			for len(d.prompt) > 0 && unicode.IsSpace(d.prompt[len(d.prompt)-1]) {
+				d.prompt = d.prompt[:len(d.prompt)-1]
+			}
+			for len(d.prompt) > 0 && !unicode.IsSpace(d.prompt[len(d.prompt)-1]) {
+				d.prompt = d.prompt[:len(d.prompt)-1]
+			}
+			d.walking = false
+		}
+		return Command{}, false
+	}
 	switch k.Special {
 	case Backspace:
+		d.walking = false
 		if len(d.prompt) == 0 {
 			d.reset()
 		} else {
@@ -323,10 +359,10 @@ func (d *Decoder) feedPrompt(k Key) (Command, bool) {
 		}
 	case Enter:
 		var cmd Command
+		line := string(d.prompt)
 		if d.mode == Search {
-			cmd = Command{Action: d.searchAction, Text: string(d.prompt)}
+			cmd = Command{Action: d.searchAction, Text: line}
 		} else {
-			line := string(d.prompt)
 			if strings.TrimSpace(line) == "" {
 				d.reset()
 				return Command{}, false
@@ -337,14 +373,79 @@ func (d *Decoder) feedPrompt(k Key) (Command, bool) {
 				return Command{}, false
 			}
 		}
+		if line != "" {
+			if d.mode == CommandLine {
+				d.commandHistory = appendPrompt(d.commandHistory, line)
+			} else {
+				d.searchHistory = appendPrompt(d.searchHistory, line)
+			}
+		}
 		d.reset()
 		return cmd, true
 	case NoSpecial:
-		if !k.Ctrl && unicode.IsPrint(k.Rune) {
+		if unicode.IsPrint(k.Rune) {
+			d.walking = false
 			d.prompt = append(d.prompt, k.Rune)
 		}
 	}
 	return Command{}, false
+}
+
+// SetHistory loads oldest-first prompt entries without changing the current prompt.
+func (d *Decoder) SetHistory(commands, searches []string) {
+	d.commandHistory = nil
+	d.searchHistory = nil
+	for _, line := range commands {
+		d.commandHistory = appendPrompt(d.commandHistory, line)
+	}
+	for _, line := range searches {
+		d.searchHistory = appendPrompt(d.searchHistory, line)
+	}
+	d.walking = false
+}
+
+// History returns independent oldest-first command and search histories.
+func (d *Decoder) History() ([]string, []string) {
+	return append([]string(nil), d.commandHistory...), append([]string(nil), d.searchHistory...)
+}
+
+func appendPrompt(entries []string, line string) []string {
+	if line == "" || len(entries) > 0 && entries[len(entries)-1] == line {
+		return entries
+	}
+	entries = append(entries, line)
+	if len(entries) > 200 {
+		entries = entries[len(entries)-200:]
+	}
+	return entries
+}
+
+func (d *Decoder) walkHistory(older bool) {
+	entries := d.commandHistory
+	if d.mode == Search {
+		entries = d.searchHistory
+	}
+	if !d.walking {
+		d.walkPrefix = append(d.walkPrefix[:0], d.prompt...)
+		d.walkIndex = len(entries)
+		d.walking = true
+	}
+	step := 1
+	if older {
+		step = -1
+	}
+	for i := d.walkIndex + step; i >= 0 && i <= len(entries); i += step {
+		if i == len(entries) {
+			d.prompt = append(d.prompt[:0], d.walkPrefix...)
+			d.walkIndex = i
+			return
+		}
+		if strings.HasPrefix(entries[i], string(d.walkPrefix)) {
+			d.prompt = append(d.prompt[:0], []rune(entries[i])...)
+			d.walkIndex = i
+			return
+		}
+	}
 }
 
 func (d *Decoder) reset() {
@@ -356,6 +457,8 @@ func (d *Decoder) reset() {
 	d.prompt = d.prompt[:0]
 	d.promptStart = 0
 	d.searchAction = NoAction
+	d.walking = false
+	d.walkPrefix = d.walkPrefix[:0]
 }
 
 // Help returns a fresh slice generated from the decoder's binding table and

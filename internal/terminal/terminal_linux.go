@@ -117,23 +117,31 @@ func (w *lockedWriter) command(s string) error {
 	return errors.Join(err, w.buffer.Flush())
 }
 
+type inputPause struct {
+	ready  chan struct{}
+	resume chan struct{}
+}
+
 // Terminal owns raw mode and a single stdin reader. Immediately defer Close
 // after Open succeeds; the defer also restores the tty during caller panics.
 type Terminal struct {
-	input    int
-	original *term.State
-	writer   *lockedWriter
-	events   chan Event
-	replies  chan cellSizeReply
-	signals  chan os.Signal
-	done     chan struct{}
-	stopped  chan struct{}
-	wake     [2]int
-	workers  sync.WaitGroup
-	once     sync.Once
-	closeErr error
-	sizeMu   sync.Mutex
-	mouse    bool // protected by writer.mu
+	input     int
+	original  *term.State
+	writer    *lockedWriter
+	events    chan Event
+	replies   chan cellSizeReply
+	signals   chan os.Signal
+	done      chan struct{}
+	stopped   chan struct{}
+	wake      [2]int
+	workers   sync.WaitGroup
+	once      sync.Once
+	closeErr  error
+	sizeMu    sync.Mutex
+	mouse     bool // protected by writer.mu
+	pause     chan *inputPause
+	suspendMu sync.Mutex
+	suspended *inputPause
 }
 
 // SetMouse enables or disables button, button-held motion, and SGR mouse
@@ -180,7 +188,7 @@ func Open() (_ *Terminal, err error) {
 		writer: &lockedWriter{buffer: bufio.NewWriter(os.Stdout)},
 		events: make(chan Event, 128), replies: make(chan cellSizeReply, 1),
 		signals: make(chan os.Signal, 8), done: make(chan struct{}),
-		stopped: make(chan struct{}), wake: [2]int{-1, -1},
+		stopped: make(chan struct{}), wake: [2]int{-1, -1}, pause: make(chan *inputPause, 1),
 	}
 	started := false
 	defer func() {
@@ -233,6 +241,8 @@ func (t *Terminal) shutdown() {
 		close(t.done)
 		signal.Stop(t.signals)
 		_, _ = unix.Write(t.wake[1], []byte{1})
+		t.suspendMu.Lock()
+		defer t.suspendMu.Unlock()
 		t.writer.mu.Lock()
 		var mouseErr error
 		if t.mouse {
@@ -250,6 +260,66 @@ func (t *Terminal) shutdown() {
 func (t *Terminal) Events() <-chan Event { return t.events }
 func (t *Terminal) Writer() io.Writer    { return t.writer }
 func (t *Terminal) Flush() error         { return t.writer.flush() }
+
+// Suspend stops the sole tty reader before restoring cooked mode and leaving
+// the alternate screen. A foreground picker can then read the same tty safely.
+// Suspend and Resume belong to the application's event-loop goroutine.
+func (t *Terminal) Suspend() error {
+	t.suspendMu.Lock()
+	defer t.suspendMu.Unlock()
+	if t.suspended != nil {
+		return nil
+	}
+	p := &inputPause{ready: make(chan struct{}), resume: make(chan struct{})}
+	select {
+	case t.pause <- p:
+	case <-t.done:
+		return os.ErrClosed
+	}
+	_, _ = unix.Write(t.wake[1], []byte{1})
+	select {
+	case <-p.ready:
+	case <-t.done:
+		return os.ErrClosed
+	}
+	if err := errors.Join(t.writer.command(disableMouse+leaveScreen), term.Restore(t.input, t.original)); err != nil {
+		_, _ = term.MakeRaw(t.input)
+		_ = t.writer.command(enterScreen + enableMouse)
+		close(p.resume)
+		return fmt.Errorf("terminal: suspend: %w", err)
+	}
+	t.suspended = p
+	return nil
+}
+
+// Resume returns to raw mode and the reader's alternate screen, then releases
+// the paused input reader. The caller must redraw its complete frame.
+func (t *Terminal) Resume() error {
+	t.suspendMu.Lock()
+	defer t.suspendMu.Unlock()
+	select {
+	case <-t.done:
+		return os.ErrClosed
+	default:
+	}
+	p := t.suspended
+	if p == nil {
+		return nil
+	}
+	if _, err := term.MakeRaw(t.input); err != nil {
+		return fmt.Errorf("terminal: resume raw mode: %w", err)
+	}
+	command := enterScreen
+	t.writer.mu.Lock()
+	if t.mouse {
+		command += enableMouse
+	}
+	t.writer.mu.Unlock()
+	err := t.writer.command(command)
+	t.suspended = nil
+	close(p.resume)
+	return err
+}
 
 // Size prefers TIOCGWINSZ pixel geometry. Missing pixel dimensions trigger a
 // cell-size query, sharing the input reader and waiting no more than 300 ms.
@@ -271,6 +341,12 @@ func (t *Terminal) Size() Size {
 			size.CellHeightPixels = int(ws.Ypixel / ws.Row)
 			return size
 		}
+	}
+	t.suspendMu.Lock()
+	suspended := t.suspended != nil
+	t.suspendMu.Unlock()
+	if suspended {
+		return size
 	}
 	select {
 	case <-t.replies:
@@ -361,7 +437,22 @@ func (t *Terminal) readInput() {
 			return
 		}
 		if polls[1].Revents != 0 {
-			return
+			var wake [32]byte
+			_, _ = unix.Read(t.wake[0], wake[:])
+			select {
+			case <-t.done:
+				return
+			case p := <-t.pause:
+				close(p.ready)
+				select {
+				case <-p.resume:
+				case <-t.done:
+					return
+				}
+				continue
+			default:
+				continue
+			}
 		}
 		var data []byte
 		if n > 0 {

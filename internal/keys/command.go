@@ -56,6 +56,8 @@ var lineBindings = [...]lineBinding{
 	{"tabonly", "tabonly", CloseOtherTabs, noArgument, "Close all other tabs"},
 	{"dark", "dark", ToggleDark, noArgument, "Toggle dark page colors"},
 	{"sidebar", "sidebar", ToggleSidebar, noArgument, "Toggle the sidebar"},
+	{"history", "history", History, noArgument, "Open reading history"},
+	{"grep", "grep {query}", FuzzyGrep, pathArgument, "Search page text and filter matching lines with fzf"},
 }
 
 // ParseCommandLine accepts a line with or without its initial colon. For :e,

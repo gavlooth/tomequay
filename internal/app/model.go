@@ -7,8 +7,10 @@ import (
 	"encoding/binary"
 	"io"
 	"sync"
+	"time"
 
 	"terminal-pdf-reader/internal/cache"
+	"terminal-pdf-reader/internal/history"
 	"terminal-pdf-reader/internal/keys"
 	"terminal-pdf-reader/internal/pdf"
 	"terminal-pdf-reader/internal/tabs"
@@ -132,13 +134,20 @@ type model struct {
 	picker         *picker
 	outline        *outlineView
 	tabList        *tabListView
+	historyPanel   *historyView
 	sidebar        bool
 	sidebarView    *outlineView
 	tabHits        []tabHit
 	drag           *pageDrag
 	lastClick      *rowClick
-	recent         []string
-	recentFile     string
+	historyStore   *history.Store
+	historyData    history.Data
+	historyChanges history.Changes
+	historyViews   map[string]history.Entry
+	historyLive    map[string]history.Entry
+	historyLast    historySnapshot
+	historySaved   time.Time
+	lastSearch     string
 	password       []rune
 	passwordFor    *openAttempt
 	passwordQueue  []openAttempt
@@ -159,6 +168,8 @@ type model struct {
 	outputErr      error
 	frame          drawnFrame
 	pendingUpload  *pendingUpload
+	fuzzyPending   *fuzzyRequest
+	fuzzyCache     string
 	ctx            context.Context
 }
 
@@ -174,7 +185,7 @@ func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options
 		screen: s, images: out, size: s.Size(), theme: DefaultTheme(), results: make(chan renderResult, 8), searchResults: make(chan searchResult, 8),
 		outlineResults: make(chan outlineResult, 8),
 		imageIDs:       make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
-	m.recentFile, m.recent = loadRecent()
+	m.loadHistory()
 	return m
 }
 

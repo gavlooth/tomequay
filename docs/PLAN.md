@@ -76,6 +76,7 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `]b` / `[b`, `gt` / `gT`, `{N}gt` | Next / previous tab (`]b`, `[b` and `:bn`, `:bp` need no Shift), tab N |
 | `gd` (`:tab split`) | Duplicate the current tab; the copy navigates independently |
 | `gb`, `:ls`, `:tabs`, `:buffers`, `:b` | List open tabs and pick one |
+| `gl` | Find an open tab with fzf, with page-text preview; `Enter` switches |
 | `gp`, `Ctrl-^` | Return to the last active tab |
 | `:b N`, `:b name` | Select tab N or a tab whose name matches |
 | `:e %`, `:tabnew %` | Open the current file again as an independent tab |
@@ -84,13 +85,19 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `zd`, `:dark` | Toggle dark page colours |
 | `gs`, `:sidebar` | Toggle the outline sidebar |
 | `o`, `:e {path}` | Open a PDF in a new tab (file picker / path) |
+| `Ctrl-p` | Find PDFs with fzf from history and scan roots; `Tab` selects several, `Enter` opens independent tabs, `Esc` cancels |
+| `gh`, `:history` | Reading history: `j/k` or arrows select, `Enter` opens a new tab, `d` forgets the entry without deleting its file, `/` filters, `Esc` closes; missing files are dimmed |
 | `q`, `:q` | Close the current tab; quit when it is the last |
 | `Q`, `:qa` | Quit all tabs |
 | `/`, `?`, `n` / `N` | Search forward / backward, next / previous match |
+| `g/`, `:grep QUERY` | Find matching text lines with fzf and highlighted page preview; first 200 matching pages, `Enter` jumps and keeps the query for `n/N` |
+| Prompt `↑` / `↓`, `Ctrl-p` / `Ctrl-n` | Walk command/search history matching the typed prefix; past newest restores the typed text |
+| Prompt `Ctrl-u`, `Ctrl-w` | Clear the prompt line / delete the preceding word |
 | `m{a-z}`, `'{a-z}`, `''` | Set mark, jump to mark, jump back to the previous position |
 | `Ctrl-o` / `Ctrl-i` | Older / newer position in the jump list |
 | `r` | Reload the file |
 | `gO` (`:outline`) | Outline navigation through qpdf, if the PDF has one; `j/k` selects, `Enter` jumps, `/` filters titles, `Esc` closes |
+| `go` | Find an outline section with fzf, preserving indentation; preview the page, `Enter` jumps and records jump history |
 | `:{N}`, `:tabnew`, `:tabclose` | Go to page N, new tab, close tab |
 | `F1`, `:help` | Key help |
 

@@ -228,12 +228,12 @@ func cropInterval(start, length, total int) (int, int) {
 	return start, min(length, total-start)
 }
 
-// PageText returns UTF-8 text from one 1-based page, without a page separator.
+// PageText returns layout-preserving UTF-8 text from one 1-based page, without a page separator.
 func (t Tools) PageText(ctx context.Context, path, password string, page int) (string, error) {
 	if _, err := t.checkedPage(ctx, path, password, page); err != nil {
 		return "", err
 	}
-	out, err := run(ctx, t.pdftotext, path, password, "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), "-enc", "UTF-8", "-eol", "unix", "-nopgbrk")
+	out, err := run(ctx, t.pdftotext, path, password, "-layout", "-f", strconv.Itoa(page), "-l", strconv.Itoa(page), "-enc", "UTF-8", "-eol", "unix", "-nopgbrk")
 	if err != nil {
 		return "", err
 	}

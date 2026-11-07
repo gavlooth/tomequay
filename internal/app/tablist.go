@@ -125,10 +125,13 @@ func (m *model) duplicateTab(id tabs.TabID) tabs.TabID {
 		s, copyState := m.state(id), m.state(copyID)
 		copyState.widthFit, copyState.dark = s.widthFit, s.dark
 	}
+	m.openedHistory()
 	return copyID
 }
 
 func (m *model) closeTab(id tabs.TabID) {
+	m.recordHistory()
+	m.saveHistory(true)
 	var path string
 	for _, tab := range m.tabs.Tabs() {
 		if tab.ID == id {
@@ -150,6 +153,7 @@ func (m *model) closeTab(id tabs.TabID) {
 			return
 		}
 	}
+	delete(m.historyLive, path)
 	m.dropDocument(path)
 	delete(m.docs, path)
 	if _, ok := m.tabs.Active(); !ok {

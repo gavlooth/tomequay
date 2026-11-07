@@ -11,6 +11,7 @@ import (
 )
 
 func (m *model) key(k keys.Key) {
+	defer m.recordHistory()
 	if m.passwordFor != nil {
 		switch k.Special {
 		case keys.Esc:
@@ -47,6 +48,10 @@ func (m *model) key(k keys.Key) {
 		}
 		return
 	}
+	if m.picker != nil && k.Ctrl && k.Rune == 'p' {
+		m.queueFuzzy(keys.FuzzyFiles, "")
+		return
+	}
 	if m.picker != nil {
 		m.pickerKey(k)
 		return
@@ -59,8 +64,16 @@ func (m *model) key(k keys.Key) {
 		m.tabListKey(k)
 		return
 	}
+	if m.historyPanel != nil {
+		m.historyKey(k)
+		return
+	}
+	mode, pending := m.decoder.Mode(), m.decoder.Pending()
 	cmd, ok := m.decoder.Feed(k)
 	if ok {
+		if mode != keys.Normal && len(pending) > 0 {
+			m.submittedPrompt(mode, pending[1:])
+		}
 		m.command(cmd)
 	} else if k.Special == keys.Enter && m.decoder.Mode() == keys.CommandLine {
 		if _, err := keys.ParseCommandLine(m.decoder.Pending()); err != nil {
@@ -77,14 +90,18 @@ func (m *model) nextPassword() {
 }
 
 func (m *model) command(cmd keys.Command) {
+	defer m.recordHistory()
 	n := max(1, cmd.Count)
 	switch cmd.Action {
 	case keys.QuitAll:
 		m.quit = true
 		return
+	case keys.FuzzyFiles, keys.FuzzyTabs, keys.FuzzyOutline, keys.FuzzyGrep:
+		m.queueFuzzy(cmd.Action, cmd.Text)
+		return
 	case keys.OpenFile:
 		if cmd.Text != "" {
-			m.open(cmd.Text, 1, "")
+			m.open(cmd.Text, 0, "")
 		} else {
 			m.showPicker()
 		}
@@ -101,6 +118,9 @@ func (m *model) command(cmd keys.Command) {
 		return
 	case keys.TabList:
 		m.showTabList("")
+		return
+	case keys.History:
+		m.showHistory()
 		return
 	case keys.GoToTabByName:
 		m.selectTabByName(cmd.Text)
@@ -281,6 +301,10 @@ func (m *model) command(cmd keys.Command) {
 		if cmd.Action == keys.SearchPrevious {
 			direction = -direction
 		}
+		if len(s.searchPages) == 0 && s.searchQuery != "" && s.searchCancel == nil {
+			m.startSearch(t, s.searchQuery, direction < 0)
+			break
+		}
 		m.nextMatch(t.ID, direction, n)
 		jump = true
 	}
@@ -304,6 +328,8 @@ func (m *model) startSearch(t *tabs.Tab, query string, backward bool) {
 	s.searchCancel = cancel
 	s.searchGeneration++
 	s.searchQuery = query
+	m.lastSearch = query
+	m.historyChanges.LastSearch = &m.lastSearch
 	s.searchBackward = backward
 	s.searchPages = nil
 	s.searchIndex = -1
@@ -320,10 +346,12 @@ func (m *model) startSearch(t *tabs.Tab, query string, backward bool) {
 	}()
 }
 func (m *model) acceptSearch(r searchResult) {
+	defer m.recordHistory()
 	s := m.states[r.tab]
 	if s == nil || s.searchGeneration != r.generation {
 		return
 	}
+	s.searchCancel = nil
 	if r.err != nil {
 		m.message = r.err.Error()
 		return

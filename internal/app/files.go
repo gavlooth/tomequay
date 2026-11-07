@@ -1,9 +1,7 @@
 package app
 
 import (
-	"bufio"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -27,73 +25,8 @@ type picker struct {
 	selected  int
 }
 
-func loadRecent() (string, []string) {
-	base := os.Getenv("XDG_STATE_HOME")
-	if base == "" {
-		if home, err := os.UserHomeDir(); err == nil {
-			base = filepath.Join(home, ".local", "state")
-		}
-	}
-	if base == "" {
-		return "", nil
-	}
-	path := filepath.Join(base, "pdfr", "recent")
-	f, err := os.Open(path)
-	if err != nil {
-		return path, nil
-	}
-	defer f.Close()
-	var paths []string
-	s := bufio.NewScanner(f)
-	for s.Scan() && len(paths) < 50 {
-		if p := s.Text(); filepath.IsAbs(p) && p != "" {
-			paths = append(paths, p)
-		}
-	}
-	return path, paths
-}
-
-func (m *model) rememberFile(path string) {
-	// A newline-delimited recent file cannot represent newline-containing names.
-	if strings.ContainsAny(path, "\r\n") {
-		return
-	}
-	recent := []string{path}
-	for _, p := range m.recent {
-		if p != path && len(recent) < 50 {
-			recent = append(recent, p)
-		}
-	}
-	m.recent = recent
-	if m.recentFile == "" {
-		return
-	}
-	dir := filepath.Dir(m.recentFile)
-	if err := os.MkdirAll(dir, 0700); err != nil {
-		m.message = fmt.Sprintf("recent files: %v", err)
-		return
-	}
-	f, err := os.CreateTemp(dir, ".recent-*")
-	if err != nil {
-		m.message = fmt.Sprintf("recent files: %v", err)
-		return
-	}
-	name := f.Name()
-	defer os.Remove(name)
-	_, err = f.WriteString(strings.Join(recent, "\n") + "\n")
-	closeErr := f.Close()
-	if err == nil {
-		err = closeErr
-	}
-	if err == nil {
-		err = os.Rename(name, m.recentFile)
-	}
-	if err != nil {
-		m.message = fmt.Sprintf("recent files: %v", err)
-	}
-}
-
 func (m *model) open(path string, page int, password string) {
+	m.recordHistory()
 	canonical, err := tabs.CanonicalPath(path)
 	if err != nil {
 		m.message = err.Error()
@@ -130,11 +63,16 @@ func (m *model) open(path string, page int, password string) {
 		m.docs[canonical] = d
 	}
 	id := m.tabs.Open(canonical, d.info.PageCount)
-	m.tabs.SetPage(id, page, 0)
-	m.state(id)
+	if page > 0 {
+		m.tabs.SetPage(id, page, 0)
+	} else if entry, ok := m.historyEntry(canonical); ok {
+		m.restoreHistory(id, entry)
+	}
+	m.state(id).searchQuery = m.lastSearch
 	m.picker = nil
+	m.historyPanel = nil
 	m.message = ""
-	m.rememberFile(canonical)
+	m.openedHistory()
 }
 
 func (m *model) reload(path string) {
@@ -209,7 +147,7 @@ func (m *model) readDirectory(dir string) {
 	}
 	p := m.picker
 	p.directory, p.entries, p.filter, p.selected = dir, nil, "", 0
-	for _, path := range m.recent {
+	for _, path := range m.historyPaths() {
 		if stat, err := os.Stat(path); err == nil && !stat.IsDir() {
 			p.entries = append(p.entries, pickerEntry{path: path, label: "recent: " + path})
 		}
@@ -298,7 +236,7 @@ func (m *model) pickerKey(k keys.Key) {
 		if e.dir {
 			m.readDirectory(e.path)
 		} else {
-			m.open(e.path, 1, "")
+			m.open(e.path, 0, "")
 		}
 	}
 }
