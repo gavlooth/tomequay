@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"terminal-pdf-reader/internal/history"
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/tabs"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/history"
+	"tomequay/internal/keys"
+	"tomequay/internal/tabs"
+	"tomequay/internal/terminal"
 )
 
 func TestRestoredHistoryClampsReplacedShorterPDF(t *testing.T) {

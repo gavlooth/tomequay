@@ -13,7 +13,7 @@ import (
 	"strings"
 	"unicode"
 
-	"terminal-pdf-reader/internal/pdf"
+	"tomequay/internal/pdf"
 )
 
 // PageText shares extracted pages between grep and preview helper processes.

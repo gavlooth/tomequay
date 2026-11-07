@@ -8,8 +8,8 @@ import (
 	"math"
 	"os"
 
-	"terminal-pdf-reader/internal/app"
-	"terminal-pdf-reader/internal/fzf"
+	"tomequay/internal/app"
+	"tomequay/internal/fzf"
 )
 
 func main() { os.Exit(run(os.Args[1:], os.Stdout, os.Stderr)) }

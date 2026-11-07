@@ -10,7 +10,7 @@ import (
 	"sync"
 	"testing"
 
-	"terminal-pdf-reader/internal/cache"
+	"tomequay/internal/cache"
 )
 
 func key(page int) cache.Key {

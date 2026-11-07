@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"terminal-pdf-reader/internal/imageout"
-	"terminal-pdf-reader/internal/pdf"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/imageout"
+	"tomequay/internal/pdf"
+	"tomequay/internal/terminal"
 )
 
 // Run opens the controlling terminal and runs until the last tab is closed or

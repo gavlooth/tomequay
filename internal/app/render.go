@@ -3,9 +3,9 @@ package app
 import (
 	"context"
 
-	"terminal-pdf-reader/internal/cache"
-	"terminal-pdf-reader/internal/pagefilter"
-	"terminal-pdf-reader/internal/pdf"
+	"tomequay/internal/cache"
+	"tomequay/internal/pagefilter"
+	"tomequay/internal/pdf"
 )
 
 func (m *model) activeLayout() pageLayout {

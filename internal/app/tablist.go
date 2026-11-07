@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/tabs"
+	"tomequay/internal/keys"
+	"tomequay/internal/tabs"
 )
 
 type tabListView struct {

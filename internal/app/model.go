@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"terminal-pdf-reader/internal/cache"
-	"terminal-pdf-reader/internal/history"
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/pdf"
-	"terminal-pdf-reader/internal/tabs"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/cache"
+	"tomequay/internal/history"
+	"tomequay/internal/keys"
+	"tomequay/internal/pdf"
+	"tomequay/internal/tabs"
+	"tomequay/internal/terminal"
 )
 
 // Options contains the deliberately small command-line surface.

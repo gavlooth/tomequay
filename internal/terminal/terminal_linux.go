@@ -14,7 +14,7 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/term"
 
-	"terminal-pdf-reader/internal/keys"
+	"tomequay/internal/keys"
 )
 
 // Size describes pane cells and the pixel dimensions of one cell.

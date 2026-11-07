@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"terminal-pdf-reader/internal/keys"
+	"tomequay/internal/keys"
 )
 
 func keyEvents(values ...keys.Key) []Event {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"terminal-pdf-reader/internal/keys"
+	"tomequay/internal/keys"
 )
 
 func TestEllipsisRetainsNameSuffixByCells(t *testing.T) {

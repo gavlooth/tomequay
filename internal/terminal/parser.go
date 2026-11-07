@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"terminal-pdf-reader/internal/keys"
+	"tomequay/internal/keys"
 )
 
 type parserState struct {

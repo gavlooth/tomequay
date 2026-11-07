@@ -3,10 +3,10 @@ package app
 import (
 	"math"
 
-	"terminal-pdf-reader/internal/imageout"
-	"terminal-pdf-reader/internal/pdf"
-	"terminal-pdf-reader/internal/tabs"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/imageout"
+	"tomequay/internal/pdf"
+	"tomequay/internal/tabs"
+	"tomequay/internal/terminal"
 )
 
 // pageLayout describes the visible window of a scaled page, in pane cells and

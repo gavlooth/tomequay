@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/pdf"
-	"terminal-pdf-reader/internal/tabs"
+	"tomequay/internal/keys"
+	"tomequay/internal/pdf"
+	"tomequay/internal/tabs"
 )
 
 type outlineView struct {

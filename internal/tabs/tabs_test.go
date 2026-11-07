@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"terminal-pdf-reader/internal/tabs"
+	"tomequay/internal/tabs"
 )
 
 func active(t *testing.T, s *tabs.Set, id tabs.TabID) *tabs.Tab {

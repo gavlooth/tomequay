@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/tabs"
+	"tomequay/internal/keys"
+	"tomequay/internal/tabs"
 )
 
 func (m *model) key(k keys.Key) {

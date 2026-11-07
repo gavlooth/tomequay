@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/pagefilter"
-	"terminal-pdf-reader/internal/tabs"
+	"tomequay/internal/keys"
+	"tomequay/internal/pagefilter"
+	"tomequay/internal/tabs"
 )
 
 func (m *model) text(x, y int, s string) {

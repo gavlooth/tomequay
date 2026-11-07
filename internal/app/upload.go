@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"terminal-pdf-reader/internal/cache"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/cache"
+	"tomequay/internal/terminal"
 )
 
 const uploadTimeout = 2 * time.Second

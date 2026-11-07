@@ -3,9 +3,9 @@ package app
 import (
 	"time"
 
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/tabs"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/keys"
+	"tomequay/internal/tabs"
+	"tomequay/internal/terminal"
 )
 
 type tabHit struct {

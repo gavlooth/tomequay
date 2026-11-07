@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"terminal-pdf-reader/internal/keys"
+	"tomequay/internal/keys"
 )
 
 type ptyReport struct {

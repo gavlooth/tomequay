@@ -1,4 +1,4 @@
-# Terminal PDF Reader
+# Tomequay
 
 A keyboard-first PDF reader with independent document tabs and real terminal page images. The supported display path is **Ghostty inside tmux on Sway**, using Kitty Unicode placeholders (not overlays or direct graphics placements).
 

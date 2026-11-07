@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"terminal-pdf-reader/internal/history"
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/tabs"
+	"tomequay/internal/history"
+	"tomequay/internal/keys"
+	"tomequay/internal/tabs"
 )
 
 type historySnapshot struct {

@@ -1,4 +1,4 @@
-module terminal-pdf-reader
+module tomequay
 
 go 1.27.3
 

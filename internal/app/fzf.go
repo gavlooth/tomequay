@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"terminal-pdf-reader/internal/fzf"
-	"terminal-pdf-reader/internal/keys"
-	"terminal-pdf-reader/internal/tabs"
-	"terminal-pdf-reader/internal/terminal"
+	"tomequay/internal/fzf"
+	"tomequay/internal/keys"
+	"tomequay/internal/tabs"
+	"tomequay/internal/terminal"
 )
 
 type fuzzyRequest struct {

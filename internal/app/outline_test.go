@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"terminal-pdf-reader/internal/pdf"
+	"tomequay/internal/pdf"
 )
 
 func TestOutlineFilter(t *testing.T) {
