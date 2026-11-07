@@ -58,6 +58,36 @@ switch_tab / resize / exit: remove the old image; then place the current image i
 
 At 1200 × 1600 pixels, an uncompressed RGBA page is about 7.3 MiB. Three pages for each of ten unrelated tabs would use about 220 MiB before other overhead; this is an estimate, not a measurement. A shared cache with a roughly 128 MiB starting limit should be measured against the actual PNG sizes and page-change behavior before the limit is fixed.
 
+## Key bindings
+
+Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/` search prompt. A number typed first repeats or targets (`12G`, `3J`, `5j`). `Esc` clears a pending count, prefix, or prompt. All bindings are configurable in the polish step; these are the defaults.
+
+| Keys | Action |
+| --- | --- |
+| `j` / `k`, `↓` / `↑` | Scroll down / up one step; at the page edge, continue onto the next / previous page |
+| `h` / `l`, `←` / `→` | Scroll left / right (when zoomed beyond the pane) |
+| `Ctrl-d` / `Ctrl-u` | Scroll half a screen |
+| `Ctrl-f` / `Space`, `Ctrl-b` / `b` | Scroll a full screen, flipping page at the edge |
+| `J` / `K`, `PageDown` / `PageUp` | Next / previous page, top of page |
+| `gg`, `G`, `{N}G` | First page, last page, page N |
+| `H` / `M` / `L` | Scroll to top / middle / bottom of the page |
+| `+` / `-`, `zi` / `zo` | Zoom in / out |
+| `zw`, `zp` (`zz`), `z0` | Fit width, fit page, reset zoom to fit |
+| `gt` / `gT`, `{N}gt` | Next / previous tab, tab N |
+| `gd` (`:tab split`) | Duplicate the current tab; the copy navigates independently |
+| `o`, `:e {path}` | Open a PDF in a new tab (file picker / path) |
+| `q`, `:q` | Close the current tab; quit when it is the last |
+| `Q`, `:qa` | Quit all tabs |
+| `/`, `?`, `n` / `N` | Search forward / backward, next / previous match |
+| `m{a-z}`, `'{a-z}`, `''` | Set mark, jump to mark, jump back to the previous position |
+| `Ctrl-o` / `Ctrl-i` | Older / newer position in the jump list |
+| `r` | Reload the file |
+| `gO` (`:outline`) | Outline (table of contents) navigation, if the PDF has one |
+| `:{N}`, `:tabnew`, `:tabclose` | Go to page N, new tab, close tab |
+| `F1`, `:help` | Key help |
+
+Keys are decoded into named actions in one table, so the status line, `:help`, and the tests read the same table.
+
 ## Implementation order
 
 1. **Display proof:** verify Poppler rendering and Überzug++ placement, cleanup, pane switching, and resize behavior. Record results before writing the full reader.
