@@ -20,7 +20,7 @@ func (m *model) text(x, y int, s string) {
 func (m *model) draw() error {
 	w := m.screen.Writer()
 	active, _ := m.tabs.Active()
-	if m.size.Columns >= 20 && m.size.Rows >= 8 && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil && m.historyPanel == nil && m.passwordFor == nil {
+	if m.size.Columns >= 20 && m.size.Rows >= 8 && m.textView == nil && !m.help && m.picker == nil && m.outline == nil && m.tabList == nil && m.historyPanel == nil && m.passwordFor == nil {
 		m.ensureUpload()
 	}
 	m.drawTabs()
@@ -33,7 +33,7 @@ func (m *model) draw() error {
 	switch {
 	case m.size.Columns < 20 || m.size.Rows < 8:
 		next.kind = smallFrame
-	case m.help || m.picker != nil || m.outline != nil || m.tabList != nil || m.historyPanel != nil:
+	case m.textView != nil || m.help || m.picker != nil || m.outline != nil || m.tabList != nil || m.historyPanel != nil:
 		next.kind = overlayFrame
 		next.sidebar = 0
 	case m.passwordFor == nil && len(m.currentPNG) > 0:
@@ -64,7 +64,9 @@ func (m *model) draw() error {
 		case pageFrame:
 			m.drawPage()
 		case overlayFrame:
-			if m.help {
+			if m.textView != nil {
+				m.drawText()
+			} else if m.help {
 				m.drawHelp()
 			} else if m.outline != nil {
 				m.drawOutline()
@@ -148,6 +150,8 @@ func (m *model) modeLabel() (string, RGB) {
 	switch {
 	case m.passwordFor != nil:
 		return "PASSWORD", m.theme.Red
+	case m.textView != nil:
+		return "TEXT", m.theme.Cyan
 	case m.help:
 		return "HELP", m.theme.Cyan
 	case m.outline != nil:
@@ -220,6 +224,14 @@ func (m *model) drawStatus() {
 	}
 	space := max(0, m.size.Columns-r.x-right)
 	active, ok := m.tabs.Active()
+	if p := m.textView; p != nil {
+		r.add(fmt.Sprintf(" page %d", p.page), t.plain())
+		if len(p.lines) > 0 {
+			r.add(fmt.Sprintf(" · line %d/%d · column %d", p.cursor.line+1, len(p.lines), p.column()+1), t.plain())
+		}
+		r.finish()
+		return
+	}
 	if !ok {
 		if m.message != "" {
 			r.add(clipText(" "+cleanText(m.message), space), m.messageStyle(m.message))
@@ -275,7 +287,7 @@ func (m *model) drawStatus() {
 		r.add(fit, textStyle{fg: t.Cyan, bg: t.Background})
 		r.add(match, textStyle{fg: t.Yellow, bg: t.Background})
 		if message == "" && space > 72 {
-			message = "gb tabs  gd copy  zd dark  gs sidebar  F1 help"
+			message = "v text  gb tabs  gd duplicate  zd dark  F1 help"
 		}
 		if message != "" {
 			r.add(clipText(" "+cleanText(message), max(0, m.size.Columns-right-r.x)), m.messageStyle(message))
@@ -372,7 +384,7 @@ var helpGroups = map[keys.Action]string{
 	keys.SearchForward: "Search", keys.SearchBackward: "Search", keys.SearchNext: "Search", keys.SearchPrevious: "Search",
 	keys.SetMark: "Marks", keys.JumpToMark: "Marks", keys.JumpBack: "Marks", keys.JumpOlder: "Marks", keys.JumpNewer: "Marks",
 	keys.OpenFile: "Files", keys.QuitAll: "Files", keys.Reload: "Files", keys.Redraw: "Files", keys.Outline: "Files",
-	keys.HelpAction: "Files", keys.OpenCommandLine: "Files",
+	keys.HelpAction: "Files", keys.OpenCommandLine: "Files", keys.SelectText: "Files",
 	keys.History: "Files",
 }
 

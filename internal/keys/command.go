@@ -38,6 +38,7 @@ var lineBindings = [...]lineBinding{
 	{"tab", "tab split", DuplicateTab, splitArgument, "Duplicate the current tab with its own view"},
 	{"help", "help", HelpAction, noArgument, "Show key help"},
 	{"outline", "outline", Outline, noArgument, "Open the document outline"},
+	{"text", "text", SelectText, noArgument, "Open page text for selection and copying"},
 	{"reload", "reload", Reload, noArgument, "Reload the file"},
 	{"mark", "mark {a-z}", SetMark, markArgument, "Set a lowercase letter mark"},
 	{"ls", "ls", TabList, noArgument, "List open tabs"},

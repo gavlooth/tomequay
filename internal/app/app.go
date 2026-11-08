@@ -80,6 +80,9 @@ func Run(ctx context.Context, opts Options) (err error) {
 				case terminal.ResizeEvent:
 					redraw = m.size != event.Size
 					m.size = event.Size
+					if p := m.textView; p != nil {
+						p.reveal(m.size.Columns, m.size.Rows-4)
+					}
 				case terminal.GraphicsReplyEvent:
 					redraw = m.graphicsReply(event)
 				case terminal.ErrorEvent:
@@ -105,6 +108,9 @@ func Run(ctx context.Context, opts Options) (err error) {
 				redraw = true
 			case result := <-m.outlineResults:
 				m.acceptOutline(result)
+				redraw = true
+			case result := <-m.textResults:
+				m.acceptText(result)
 				redraw = true
 			case now := <-uploadDeadline:
 				m.uploadExpired(now)

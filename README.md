@@ -35,9 +35,15 @@ File candidates start with reading history, then stream PDFs found by `fd` (or `
 
 Inside tmux, fzf uses a popup while the reader keeps its image cells. The reader finishes outstanding image acknowledgements before opening it and redraws the cells when it closes. Outside tmux, the reader pauses its sole input reader, leaves the alternate screen and restores cooked mode, then resumes raw mode and re-uploads the page after fzf exits.
 
+## Selecting and copying text
+
+`v` or `:text` opens the current page's extracted text. Move the cursor with `h/j/k/l` or arrows, use `Home/End` for the start/end of a line, and `Ctrl-u/Ctrl-d` to move half a screen. In this view, `v` toggles the selection anchor; move the cursor to extend the selection, or select with a left-button drag. `a` selects the whole page, `y` sends the selection to the clipboard, and the mouse wheel scrolls the text. `Esc` closes the view without changing the PDF position.
+
+Copying requires terminal OSC52 support and permission to write the clipboard. Inside tmux, enable `tmux set -g allow-passthrough on`. A sent message is not an acknowledgement that the clipboard changed; the terminal may reject it. Image-only pages need OCR, which is not included.
+
 ## Mouse
 
-Enable tmux mouse forwarding with `tmux set -g mouse on`. Wheel up/down scrolls like `k/j`; Ctrl+wheel zooms, Shift+wheel scrolls horizontally. Click a tab to focus it or middle-click to close it. A single click jumps to a switcher, outline, or sidebar row; the file picker and reading history select on one click and open on a double-click or `Enter`. Drag the page to pan a zoomed view. Without tmux mouse forwarding, all keyboard commands still work. Shift+drag selects text in tmux/Ghostty instead of panning the PDF.
+Enable tmux mouse forwarding with `tmux set -g mouse on`. Wheel up/down scrolls like `k/j`; Ctrl+wheel zooms, Shift+wheel scrolls horizontally. Click a tab to focus it or middle-click to close it. A single click jumps to a switcher, outline, or sidebar row; the file picker and reading history select on one click and open on a double-click or `Enter`. Drag the page to pan a zoomed view. Without tmux mouse forwarding, all keyboard commands still work. Shift+drag selects terminal characters in tmux/Ghostty, not text inside the rendered PDF image; use `v` or `:text` to select PDF text.
 
 ## Dark pages
 

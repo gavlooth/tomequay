@@ -80,6 +80,9 @@ func (m *model) reload(path string) {
 	if d == nil || m.toolErr != nil {
 		return
 	}
+	if m.textView != nil && m.textView.path == path {
+		m.closeText()
+	}
 	m.invalidate()
 	m.dropDocument(path)
 	// Failed reloads must not keep displaying a stale document version.

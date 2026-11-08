@@ -135,6 +135,7 @@ type model struct {
 	outline        *outlineView
 	tabList        *tabListView
 	historyPanel   *historyView
+	textView       *textView
 	sidebar        bool
 	sidebarView    *outlineView
 	tabHits        []tabHit
@@ -154,6 +155,7 @@ type model struct {
 	results        chan renderResult
 	searchResults  chan searchResult
 	outlineResults chan outlineResult
+	textResults    chan textResult
 	generation     uint64
 	renderCancel   context.CancelFunc
 	workers        sync.WaitGroup
@@ -184,6 +186,7 @@ func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options
 		tools: tools, toolErr: toolErr, cache: cache.New(opts.CacheBytes),
 		screen: s, images: out, size: s.Size(), theme: DefaultTheme(), results: make(chan renderResult, 8), searchResults: make(chan searchResult, 8),
 		outlineResults: make(chan outlineResult, 8),
+		textResults:    make(chan textResult, 8),
 		imageIDs:       make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
 	m.loadHistory()
 	return m

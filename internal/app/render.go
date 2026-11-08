@@ -38,7 +38,7 @@ type renderJob struct {
 func (m *model) prepareRender() {
 	m.prepareSidebar()
 	t, ok := m.tabs.Active()
-	if !ok || m.picker != nil || m.outline != nil || m.tabList != nil || m.help || m.passwordFor != nil || m.size.Columns < 20 || m.size.Rows < 8 {
+	if !ok || m.textView != nil || m.picker != nil || m.outline != nil || m.tabList != nil || m.help || m.passwordFor != nil || m.size.Columns < 20 || m.size.Rows < 8 {
 		if m.requested {
 			m.invalidate()
 		}
@@ -163,6 +163,7 @@ func (m *model) drawPage() {
 }
 
 func (m *model) stopWorkers() {
+	m.closeText()
 	if m.renderCancel != nil {
 		m.renderCancel()
 	}

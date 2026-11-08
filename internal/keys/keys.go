@@ -80,6 +80,7 @@ const (
 	Reload
 	Redraw
 	Outline
+	SelectText
 	HelpAction
 	NewTab
 	TabList
@@ -203,6 +204,7 @@ var bindings = [...]binding{
 	{sequence: runes("?"), action: SearchBackward, prompt: Search, description: "Enter a backward search"},
 	{sequence: runes("n"), action: SearchNext, description: "Next search match"},
 	{sequence: runes("N"), action: SearchPrevious, description: "Previous search match"},
+	{sequence: runes("v"), action: SelectText, description: "Open page text for selection and copying"},
 	{sequence: runes("m"), action: SetMark, mark: true, description: "Set a lowercase letter mark"},
 	{sequence: runes("'"), action: JumpToMark, mark: true, description: "Jump to a lowercase letter mark"},
 	{sequence: runes("''"), action: JumpBack, description: "Jump back to the previous position"},

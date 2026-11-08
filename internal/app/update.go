@@ -37,6 +37,10 @@ func (m *model) key(k keys.Key) {
 		}
 		return
 	}
+	if m.textView != nil {
+		m.textKey(k)
+		return
+	}
 	if m.help {
 		switch {
 		case k.Rune == 'j' || k.Special == keys.Down:
@@ -93,6 +97,9 @@ func (m *model) command(cmd keys.Command) {
 	defer m.recordHistory()
 	n := max(1, cmd.Count)
 	switch cmd.Action {
+	case keys.SelectText:
+		m.showText()
+		return
 	case keys.QuitAll:
 		m.quit = true
 		return

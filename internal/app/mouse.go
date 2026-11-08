@@ -29,6 +29,12 @@ type rowClick struct {
 
 func (m *model) mouse(e terminal.MouseEvent) {
 	defer m.recordHistory()
+	if m.textView != nil && !(e.Kind == terminal.MousePress && e.Row == 0) {
+		if !e.Shift || e.Kind == terminal.MouseRelease {
+			m.textMouse(e)
+		}
+		return
+	}
 	if e.Kind == terminal.MouseRelease {
 		m.drag = nil
 		return
@@ -83,9 +89,11 @@ func (m *model) mouse(e terminal.MouseEvent) {
 			switch e.Button {
 			case terminal.ButtonLeft:
 				m.tabs.Focus(hit.id)
+				m.closeText()
 				m.picker, m.outline, m.tabList, m.help = nil, nil, nil, false
 				m.historyPanel = nil
 			case terminal.ButtonMiddle:
+				m.closeText()
 				m.closeTab(hit.id)
 				if m.tabList != nil {
 					m.filterTabs(0)

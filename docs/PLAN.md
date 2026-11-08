@@ -60,7 +60,7 @@ At 1200 × 1600 pixels, an uncompressed RGBA page is about 7.3 MiB. Three pages 
 
 ## Key bindings
 
-Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/` search prompt. A number typed first repeats or targets (`12G`, `3J`, `5j`). `Esc` clears a pending count, prefix, or prompt. All bindings are configurable in the polish step; these are the defaults.
+Vim-style normal mode with a `:` command line, a `/` search prompt, and an extracted-text view. A number typed first repeats or targets (`12G`, `3J`, `5j`). `Esc` clears a pending count, prefix, or prompt. All bindings are configurable in the polish step; these are the defaults.
 
 | Keys | Action |
 | --- | --- |
@@ -91,6 +91,7 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `Q`, `:qa` | Quit all tabs |
 | `/`, `?`, `n` / `N` | Search forward / backward, next / previous match |
 | `g/`, `:grep QUERY` | Find matching text lines with fzf and highlighted page preview; first 200 matching pages, `Enter` jumps and keeps the query for `n/N` |
+| `v`, `:text` | Open the current page's extracted text for selection and copying |
 | Prompt `↑` / `↓`, `Ctrl-p` / `Ctrl-n` | Walk command/search history matching the typed prefix; past newest restores the typed text |
 | Prompt `Ctrl-u`, `Ctrl-w` | Clear the prompt line / delete the preceding word |
 | `m{a-z}`, `'{a-z}`, `''` | Set mark, jump to mark, jump back to the previous position |
@@ -102,6 +103,22 @@ Vim-style, modal only where vim is: normal mode plus a `:` command line and a `/
 | `F1`, `:help` | Key help |
 
 Keys are decoded into named actions in one table, so the status line, `:help`, and the tests read the same table.
+
+### Text view
+
+| Keys / mouse | Action |
+| --- | --- |
+| `h/j/k/l`, arrows | Move the text cursor left / down / up / right |
+| `Home` / `End` | Move to the start / end of the line |
+| `Ctrl-u` / `Ctrl-d` | Move half a screen up / down |
+| `v` | Toggle the selection anchor; cursor movement extends the selection |
+| Left-button drag | Select text |
+| Mouse wheel | Scroll the text |
+| `a` | Select the whole page |
+| `y` | Send the selection to the clipboard using OSC52 |
+| `Esc` | Close the text view without changing the PDF position |
+
+Copying needs terminal OSC52 support and clipboard-write permission. In tmux, enable `tmux set -g allow-passthrough on`; mouse interaction also needs `tmux set -g mouse on`. Sending is not acknowledged: the terminal may reject the clipboard update. Image-only pages need OCR, which is not included.
 
 ## Implementation order
 
