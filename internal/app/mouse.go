@@ -35,6 +35,9 @@ func (m *model) mouse(e terminal.MouseEvent) {
 		}
 		return
 	}
+	if m.pageSelection != nil && m.pageSelectionMouse(e) {
+		return
+	}
 	if e.Kind == terminal.MouseRelease {
 		m.drag = nil
 		return
@@ -90,10 +93,12 @@ func (m *model) mouse(e terminal.MouseEvent) {
 			case terminal.ButtonLeft:
 				m.tabs.Focus(hit.id)
 				m.closeText()
+				m.closePageSelection()
 				m.picker, m.outline, m.tabList, m.help = nil, nil, nil, false
 				m.historyPanel = nil
 			case terminal.ButtonMiddle:
 				m.closeText()
+				m.closePageSelection()
 				m.closeTab(hit.id)
 				if m.tabList != nil {
 					m.filterTabs(0)

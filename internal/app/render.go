@@ -20,7 +20,16 @@ func (m *model) activeLayout() pageLayout {
 	size := m.size
 	sidebar := m.sidebarWidth()
 	size.Columns -= sidebar
-	l := layoutPage(size, d.info, t.View, m.state(t.ID).widthFit)
+	info := d.info
+	if p := m.pageSelection; p != nil && p.tab == t.ID && len(p.words.Words) > 0 {
+		info.PageWidthPoints, info.PageHeightPoints = p.words.Width, p.words.Height
+		info.PageRotationDegrees = 0
+	}
+	l := layoutPage(size, info, t.View, m.state(t.ID).widthFit)
+	if p := m.pageSelection; p != nil && p.tab == t.ID && len(p.words.Words) > 0 {
+		w, h := p.words.PixelSize(l.Request)
+		l = layoutViewport(size, t.View, l.Request, w, h)
+	}
 	l.X += sidebar
 	l.Request.Path, l.Request.Password = t.Document.Path, d.password
 	return l
@@ -36,6 +45,9 @@ type renderJob struct {
 }
 
 func (m *model) prepareRender() {
+	if p := m.pageSelection; p != nil && !m.pageSelectionMatches(p) {
+		m.closePageSelection()
+	}
 	m.prepareSidebar()
 	t, ok := m.tabs.Active()
 	if !ok || m.textView != nil || m.picker != nil || m.outline != nil || m.tabList != nil || m.help || m.passwordFor != nil || m.size.Columns < 20 || m.size.Rows < 8 {
@@ -164,6 +176,8 @@ func (m *model) drawPage() {
 
 func (m *model) stopWorkers() {
 	m.closeText()
+	m.closePageSelection()
+	m.discardPendingReplacement()
 	if m.renderCancel != nil {
 		m.renderCancel()
 	}

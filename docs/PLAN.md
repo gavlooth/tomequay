@@ -60,7 +60,7 @@ At 1200 × 1600 pixels, an uncompressed RGBA page is about 7.3 MiB. Three pages 
 
 ## Key bindings
 
-Vim-style normal mode with a `:` command line, a `/` search prompt, and an extracted-text view. A number typed first repeats or targets (`12G`, `3J`, `5j`). `Esc` clears a pending count, prefix, or prompt. All bindings are configurable in the polish step; these are the defaults.
+Vim-style normal mode with a `:` command line, a `/` search prompt, and configurable extracted-text or original-page selection. A number typed first repeats or targets (`12G`, `3J`, `5j`). `Esc` clears a pending count, prefix, or prompt. All bindings are configurable in the polish step; these are the defaults.
 
 | Keys | Action |
 | --- | --- |
@@ -91,7 +91,10 @@ Vim-style normal mode with a `:` command line, a `/` search prompt, and an extra
 | `Q`, `:qa` | Quit all tabs |
 | `/`, `?`, `n` / `N` | Search forward / backward, next / previous match |
 | `g/`, `:grep QUERY` | Find matching text lines with fzf and highlighted page preview; first 200 matching pages, `Enter` jumps and keeps the query for `n/N` |
-| `v`, `:text` | Open the current page's extracted text for selection and copying |
+| `v`, `:select` | Select current-page text using the configured selection mode |
+| `:text` | Always open the current page's extracted-text view |
+| `:page-selection` | Always select words directly on the original rendered page |
+| `:selection-mode [text\|page]` | Query the default selection mode, or change it for this session only |
 | Prompt `↑` / `↓`, `Ctrl-p` / `Ctrl-n` | Walk command/search history matching the typed prefix; past newest restores the typed text |
 | Prompt `Ctrl-u`, `Ctrl-w` | Clear the prompt line / delete the preceding word |
 | `m{a-z}`, `'{a-z}`, `''` | Set mark, jump to mark, jump back to the previous position |
@@ -103,6 +106,12 @@ Vim-style normal mode with a `:` command line, a `/` search prompt, and an extra
 | `F1`, `:help` | Key help |
 
 Keys are decoded into named actions in one table, so the status line, `:help`, and the tests read the same table.
+
+### Selection configuration
+
+The default selection mode is `text`; `page` keeps selection on the original rendered PDF. Add `export PDFR_SELECTION_MODE=page` (or `text`) to your shell configuration to persist your preference. `pdfr --selection-mode text file.pdf` overrides the environment for that invocation. Both settings accept only `text` or `page`; invalid values are rejected.
+
+`:selection-mode` queries the current session default; `:selection-mode text` and `:selection-mode page` change it for this session only, without writing shell configuration or saved reading history. `v` and `:select` use this default. `:text` and `:page-selection` override it for one selection view without changing it. Extraction is limited to the current page; selecting all does not extract or copy the whole document.
 
 ### Text view
 
@@ -117,6 +126,22 @@ Keys are decoded into named actions in one table, so the status line, `:help`, a
 | `a` | Select the whole page |
 | `y` | Send the selection to the clipboard using OSC52 |
 | `Esc` | Close the text view without changing the PDF position |
+
+### Original-page word selection
+
+| Keys / mouse | Action |
+| --- | --- |
+| Left-button press / drag | Select words directly on the rendered PDF image |
+| `h` / `l`, `←` / `→` | Move to the previous / next word |
+| `j` / `k`, `↓` / `↑` | Move by line |
+| `v` | Toggle range selection |
+| `a` | Select all words on the current page |
+| `y` | Send the selection to the clipboard using OSC52, preserving line breaks |
+| `+` / `-` | Zoom in / out without leaving selection |
+| Mouse wheel | Scroll; Ctrl+wheel zooms, Shift+wheel scrolls horizontally |
+| `Esc` | Exit original-page selection |
+
+Selection on the page image is word-granular, not character-granular. Mouse press/drag selects words instead of panning while this mode is active. Both selection modes extract only the current page.
 
 Copying needs terminal OSC52 support and clipboard-write permission. In tmux, enable `tmux set -g allow-passthrough on`; mouse interaction also needs `tmux set -g mouse on`. Sending is not acknowledged: the terminal may reject the clipboard update. Image-only pages need OCR, which is not included.
 

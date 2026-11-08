@@ -152,6 +152,8 @@ func (m *model) modeLabel() (string, RGB) {
 		return "PASSWORD", m.theme.Red
 	case m.textView != nil:
 		return "TEXT", m.theme.Cyan
+	case m.pageSelection != nil && m.decoder.Mode() == keys.Normal:
+		return "SELECT PAGE", m.theme.Cyan
 	case m.help:
 		return "HELP", m.theme.Cyan
 	case m.outline != nil:
@@ -232,6 +234,11 @@ func (m *model) drawStatus() {
 		r.finish()
 		return
 	}
+	if m.pageSelection != nil {
+		r.add(m.pageSelectionStatus(), t.plain())
+		r.finish()
+		return
+	}
 	if !ok {
 		if m.message != "" {
 			r.add(clipText(" "+cleanText(m.message), space), m.messageStyle(m.message))
@@ -287,7 +294,7 @@ func (m *model) drawStatus() {
 		r.add(fit, textStyle{fg: t.Cyan, bg: t.Background})
 		r.add(match, textStyle{fg: t.Yellow, bg: t.Background})
 		if message == "" && space > 72 {
-			message = "v text  gb tabs  gd duplicate  zd dark  F1 help"
+			message = "v select  gb tabs  gd duplicate  zd dark  F1 help"
 		}
 		if message != "" {
 			r.add(clipText(" "+cleanText(message), max(0, m.size.Columns-right-r.x)), m.messageStyle(message))
@@ -385,6 +392,7 @@ var helpGroups = map[keys.Action]string{
 	keys.SetMark: "Marks", keys.JumpToMark: "Marks", keys.JumpBack: "Marks", keys.JumpOlder: "Marks", keys.JumpNewer: "Marks",
 	keys.OpenFile: "Files", keys.QuitAll: "Files", keys.Reload: "Files", keys.Redraw: "Files", keys.Outline: "Files",
 	keys.HelpAction: "Files", keys.OpenCommandLine: "Files", keys.SelectText: "Files",
+	keys.Select: "Files", keys.SelectPageText: "Files", keys.SetSelectionMode: "Files",
 	keys.History: "Files",
 }
 

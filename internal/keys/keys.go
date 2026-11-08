@@ -80,7 +80,10 @@ const (
 	Reload
 	Redraw
 	Outline
+	Select
 	SelectText
+	SelectPageText
+	SetSelectionMode
 	HelpAction
 	NewTab
 	TabList
@@ -101,7 +104,8 @@ const (
 // Command is a completed input. Count is zero when no count was typed, except
 // MoveTab always provides a destination or displacement. Arg is a mark letter
 // or a MoveTab sign: zero means an absolute zero-based position, '+' or '-'
-// means a relative signed Count. Text holds a path, search query, or tab name.
+// means a relative signed Count. Text holds a path, search query, tab name, or
+// selection mode; SetSelectionMode with empty Text queries the current mode.
 type Command struct {
 	Action Action
 	Count  int
@@ -204,7 +208,7 @@ var bindings = [...]binding{
 	{sequence: runes("?"), action: SearchBackward, prompt: Search, description: "Enter a backward search"},
 	{sequence: runes("n"), action: SearchNext, description: "Next search match"},
 	{sequence: runes("N"), action: SearchPrevious, description: "Previous search match"},
-	{sequence: runes("v"), action: SelectText, description: "Open page text for selection and copying"},
+	{sequence: runes("v"), action: Select, description: "Select current-page text using the configured selection mode"},
 	{sequence: runes("m"), action: SetMark, mark: true, description: "Set a lowercase letter mark"},
 	{sequence: runes("'"), action: JumpToMark, mark: true, description: "Jump to a lowercase letter mark"},
 	{sequence: runes("''"), action: JumpBack, description: "Jump back to the previous position"},

@@ -6,7 +6,7 @@ Requires Go and Poppler (`pacman -S poppler` on Arch, or `apt install poppler-ut
 
 ```sh
 go build -trimpath -ldflags="-s -w" -o ~/.local/bin/pdfr ./cmd/pdfr
-pdfr [--cache-mb 128] [--page 1] [file.pdf ...]
+pdfr [--cache-mb 128] [--page 1] [--selection-mode text|page] [file.pdf ...]
 ```
 
 No files opens the in-app picker. Use `j/k` to scroll, `J/K` for pages, `12G` to jump, `+/-` to zoom, `zw/zp` to fit width/page, `/query` then `n/N` to search, `gd` to duplicate, and `]b`/`[b` (or `gt`/`gT`) to switch tabs. `gO` or `:outline` opens the document outline: `j/k` selects, `Enter` jumps, `/` filters titles (then `Enter` finishes editing the filter), and `Esc` closes. Entries without a resolvable page are dimmed and skipped; the current page's section is selected initially. Outline jumps join the normal jump history. `Ctrl-l` forces a page re-upload/redraw. `o` opens the picker, `q` closes a tab, and `Q` quits. `F1` or `:help` shows all keys; the [key table](docs/PLAN.md#key-bindings) also documents commands, marks, and jump history.
@@ -37,13 +37,23 @@ Inside tmux, fzf uses a popup while the reader keeps its image cells. The reader
 
 ## Selecting and copying text
 
-`v` or `:text` opens the current page's extracted text. Move the cursor with `h/j/k/l` or arrows, use `Home/End` for the start/end of a line, and `Ctrl-u/Ctrl-d` to move half a screen. In this view, `v` toggles the selection anchor; move the cursor to extend the selection, or select with a left-button drag. `a` selects the whole page, `y` sends the selection to the clipboard, and the mouse wheel scrolls the text. `Esc` closes the view without changing the PDF position.
+`v` or `:select` selects text from the **current page only**, using the configured mode: `text` (the default) opens an extracted-text view; `page` selects words directly on the original rendered PDF. Both modes remain available regardless of the default: `:text` always opens the extracted view, and `:page-selection` always enters original-page selection.
+
+For a persistent shell preference, add `export PDFR_SELECTION_MODE=page` (or `text`) to your shell configuration. `pdfr --selection-mode text file.pdf` overrides that environment setting for this invocation. Only `text` and `page` are accepted. Inside the reader, `:selection-mode` reports the current default, and `:selection-mode text` or `:selection-mode page` changes it for this session only; it does not update your shell preference or saved reading history. Direct `:text` and `:page-selection` commands do not change the default.
+
+### Extracted-text view
+
+Move the cursor with `h/j/k/l` or arrows, use `Home/End` for the start/end of a line, and `Ctrl-u/Ctrl-d` to move half a screen. In this view, `v` toggles the selection anchor; move the cursor to extend the selection, or select with a left-button drag. `a` selects the whole current page, `y` sends the selection to the clipboard, and the mouse wheel scrolls the text. `Esc` closes the view without changing the PDF position.
+
+### Original-page word selection
+
+Press or drag the left mouse button over words on the page image to select them. `h/l` or left/right arrows move to the previous/next word; `j/k` or down/up arrows move by line. `v` toggles range selection, `a` selects all words on the current page, `y` copies, and `Esc` exits selection. `+/-` still zoom, and the mouse wheel still scrolls (Ctrl+wheel zooms; Shift+wheel scrolls horizontally). Selection is word-granular, not character-granular, and copying preserves the extracted line breaks. Text and word positions are extracted for the current page, not the entire document.
 
 Copying requires terminal OSC52 support and permission to write the clipboard. Inside tmux, enable `tmux set -g allow-passthrough on`. A sent message is not an acknowledgement that the clipboard changed; the terminal may reject it. Image-only pages need OCR, which is not included.
 
 ## Mouse
 
-Enable tmux mouse forwarding with `tmux set -g mouse on`. Wheel up/down scrolls like `k/j`; Ctrl+wheel zooms, Shift+wheel scrolls horizontally. Click a tab to focus it or middle-click to close it. A single click jumps to a switcher, outline, or sidebar row; the file picker and reading history select on one click and open on a double-click or `Enter`. Drag the page to pan a zoomed view. Without tmux mouse forwarding, all keyboard commands still work. Shift+drag selects terminal characters in tmux/Ghostty, not text inside the rendered PDF image; use `v` or `:text` to select PDF text.
+Enable tmux mouse forwarding with `tmux set -g mouse on`. Wheel up/down scrolls like `k/j`; Ctrl+wheel zooms, Shift+wheel scrolls horizontally. Click a tab to focus it or middle-click to close it. A single click jumps to a switcher, outline, or sidebar row; the file picker and reading history select on one click and open on a double-click or `Enter`. Outside selection mode, drag the page to pan a zoomed view; original-page selection uses press/drag to select words instead. Without tmux mouse forwarding, all keyboard commands still work. Shift+drag selects terminal characters in tmux/Ghostty, not text inside the rendered PDF image; use `v`, `:text`, or `:page-selection` to select PDF text.
 
 ## Dark pages
 

@@ -18,6 +18,7 @@ const (
 	tabArgument
 	newTabArgument
 	moveArgument
+	selectionModeArgument
 )
 
 type lineBinding struct {
@@ -38,7 +39,10 @@ var lineBindings = [...]lineBinding{
 	{"tab", "tab split", DuplicateTab, splitArgument, "Duplicate the current tab with its own view"},
 	{"help", "help", HelpAction, noArgument, "Show key help"},
 	{"outline", "outline", Outline, noArgument, "Open the document outline"},
-	{"text", "text", SelectText, noArgument, "Open page text for selection and copying"},
+	{"select", "select", Select, noArgument, "Select current-page text using the configured selection mode"},
+	{"text", "text", SelectText, noArgument, "Open the current page's extracted text for selection and copying"},
+	{"page-selection", "page-selection", SelectPageText, noArgument, "Select words directly on the original rendered page"},
+	{"selection-mode", "selection-mode [text|page]", SetSelectionMode, selectionModeArgument, "Query or change the session's default selection mode"},
 	{"reload", "reload", Reload, noArgument, "Reload the file"},
 	{"mark", "mark {a-z}", SetMark, markArgument, "Set a lowercase letter mark"},
 	{"ls", "ls", TabList, noArgument, "List open tabs"},
@@ -107,6 +111,12 @@ func ParseCommandLine(line string) (Command, error) {
 			} else if argument != "" {
 				return Command{}, fmt.Errorf("command %q accepts only %% or no argument", name)
 			}
+		case selectionModeArgument:
+			argument = strings.TrimSpace(argument)
+			if argument != "" && argument != "text" && argument != "page" {
+				return Command{}, fmt.Errorf("invalid selection mode %q: use text or page", argument)
+			}
+			cmd.Text = argument
 		case tabArgument:
 			argument = strings.TrimSpace(argument)
 			if argument == "" {

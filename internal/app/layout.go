@@ -42,6 +42,14 @@ func layoutPage(size terminal.Size, info pdf.DocumentInfo, view tabs.View, width
 	}
 	r := pdf.RenderRequest{Page: view.Page, WidthPixels: boxW, HeightPixels: boxH, Zoom: math.Round(view.Zoom*1000) / 1000}
 	w, h := pdf.ScaledPageSize(info, r)
+	return layoutViewport(size, view, r, w, h)
+}
+
+func layoutViewport(size terminal.Size, view tabs.View, r pdf.RenderRequest, w, h int) pageLayout {
+	cw, ch := max(1, size.CellWidthPixels), max(1, size.CellHeightPixels)
+	areaColumns, areaRows := min(size.Columns, imageout.MaxGridSize), min(size.Rows-2, imageout.MaxGridSize)
+	aw, ah := areaColumns*cw, areaRows*ch
+	r.CropX, r.CropY, r.CropWidth, r.CropHeight = 0, 0, 0, 0
 	visibleW, visibleH := min(w, aw), min(h, ah)
 	cols := max(1, min(areaColumns, (visibleW+cw-1)/cw))
 	rows := max(1, min(areaRows, (visibleH+ch-1)/ch))

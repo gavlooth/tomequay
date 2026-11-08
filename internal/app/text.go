@@ -56,6 +56,7 @@ func (m *model) showText() {
 	if d == nil || !d.ready {
 		return
 	}
+	m.closePageSelection()
 	m.closeText()
 	ctx, cancel := context.WithCancel(m.ctx)
 	p := &textView{tab: t.ID, path: t.Document.Path, page: t.View.Page, mtime: d.mtime, cancel: cancel, loading: true}

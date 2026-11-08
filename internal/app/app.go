@@ -13,6 +13,9 @@ import (
 // Run opens the controlling terminal and runs until the last tab is closed or
 // ctx is canceled. All model mutations and terminal writes happen in this loop.
 func Run(ctx context.Context, opts Options) (err error) {
+	if opts.SelectionMode != "" && opts.SelectionMode != "text" && opts.SelectionMode != "page" {
+		return errors.New("selection mode must be text or page")
+	}
 	t, err := terminal.Open()
 	if err != nil {
 		return err
@@ -48,6 +51,7 @@ func Run(ctx context.Context, opts Options) (err error) {
 	defer uploadTimer.Stop()
 	for !m.quit {
 		m.prepareRender()
+		m.prepareSelectionImage()
 		if err := m.draw(); err != nil {
 			return err
 		}
@@ -111,6 +115,12 @@ func Run(ctx context.Context, opts Options) (err error) {
 				redraw = true
 			case result := <-m.textResults:
 				m.acceptText(result)
+				redraw = true
+			case result := <-m.pageWordsResults:
+				m.acceptPageWords(result)
+				redraw = true
+			case result := <-m.selectionImageResults:
+				m.acceptSelectionImage(result)
 				redraw = true
 			case now := <-uploadDeadline:
 				m.uploadExpired(now)

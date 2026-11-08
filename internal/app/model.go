@@ -19,9 +19,10 @@ import (
 
 // Options contains the deliberately small command-line surface.
 type Options struct {
-	Paths      []string
-	CacheBytes int64
-	Page       int
+	Paths         []string
+	CacheBytes    int64
+	Page          int
+	SelectionMode string
 }
 
 type screen interface {
@@ -90,6 +91,8 @@ type imageRecord struct {
 	sent, cached  bool
 	failed        bool
 	columns, rows int
+	visualVersion uint64
+	original      *imageRecord
 }
 type openAttempt struct {
 	path string
@@ -117,62 +120,67 @@ type drawnFrame struct {
 }
 
 type model struct {
-	tabs           *tabs.Set
-	states         map[tabs.TabID]*tabState
-	docs           map[string]*document
-	decoder        keys.Decoder
-	tools          pdf.Tools
-	toolErr        error
-	cache          *cache.Cache
-	images         images
-	screen         screen
-	size           terminal.Size
-	theme          Theme
-	message        string
-	quit, help     bool
-	helpOffset     int
-	picker         *picker
-	outline        *outlineView
-	tabList        *tabListView
-	historyPanel   *historyView
-	textView       *textView
-	sidebar        bool
-	sidebarView    *outlineView
-	tabHits        []tabHit
-	drag           *pageDrag
-	lastClick      *rowClick
-	historyStore   *history.Store
-	historyData    history.Data
-	historyChanges history.Changes
-	historyViews   map[string]history.Entry
-	historyLive    map[string]history.Entry
-	historyLast    historySnapshot
-	historySaved   time.Time
-	lastSearch     string
-	password       []rune
-	passwordFor    *openAttempt
-	passwordQueue  []openAttempt
-	results        chan renderResult
-	searchResults  chan searchResult
-	outlineResults chan outlineResult
-	textResults    chan textResult
-	generation     uint64
-	renderCancel   context.CancelFunc
-	workers        sync.WaitGroup
-	requested      bool
-	requestedTab   tabs.TabID
-	requestedKey   cache.Key
-	layout         pageLayout
-	currentPNG     []byte
-	currentKey     cache.Key
-	imageIDs       map[cache.Key]*imageRecord
-	nextID         uint32
-	outputErr      error
-	frame          drawnFrame
-	pendingUpload  *pendingUpload
-	fuzzyPending   *fuzzyRequest
-	fuzzyCache     string
-	ctx            context.Context
+	tabs                  *tabs.Set
+	states                map[tabs.TabID]*tabState
+	docs                  map[string]*document
+	decoder               keys.Decoder
+	tools                 pdf.Tools
+	toolErr               error
+	cache                 *cache.Cache
+	images                images
+	screen                screen
+	size                  terminal.Size
+	theme                 Theme
+	message               string
+	quit, help            bool
+	helpOffset            int
+	picker                *picker
+	outline               *outlineView
+	tabList               *tabListView
+	historyPanel          *historyView
+	textView              *textView
+	pageSelection         *pageSelection
+	selectionMode         string
+	selectionImageVersion uint64
+	sidebar               bool
+	sidebarView           *outlineView
+	tabHits               []tabHit
+	drag                  *pageDrag
+	lastClick             *rowClick
+	historyStore          *history.Store
+	historyData           history.Data
+	historyChanges        history.Changes
+	historyViews          map[string]history.Entry
+	historyLive           map[string]history.Entry
+	historyLast           historySnapshot
+	historySaved          time.Time
+	lastSearch            string
+	password              []rune
+	passwordFor           *openAttempt
+	passwordQueue         []openAttempt
+	results               chan renderResult
+	searchResults         chan searchResult
+	outlineResults        chan outlineResult
+	textResults           chan textResult
+	pageWordsResults      chan pageWordsResult
+	selectionImageResults chan selectionImageResult
+	generation            uint64
+	renderCancel          context.CancelFunc
+	workers               sync.WaitGroup
+	requested             bool
+	requestedTab          tabs.TabID
+	requestedKey          cache.Key
+	layout                pageLayout
+	currentPNG            []byte
+	currentKey            cache.Key
+	imageIDs              map[cache.Key]*imageRecord
+	nextID                uint32
+	outputErr             error
+	frame                 drawnFrame
+	pendingUpload         *pendingUpload
+	fuzzyPending          *fuzzyRequest
+	fuzzyCache            string
+	ctx                   context.Context
 }
 
 func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options) *model {
@@ -185,9 +193,15 @@ func newModel(s screen, out images, tools pdf.Tools, toolErr error, opts Options
 	m := &model{tabs: tabs.NewSet(), states: make(map[tabs.TabID]*tabState), docs: make(map[string]*document),
 		tools: tools, toolErr: toolErr, cache: cache.New(opts.CacheBytes),
 		screen: s, images: out, size: s.Size(), theme: DefaultTheme(), results: make(chan renderResult, 8), searchResults: make(chan searchResult, 8),
-		outlineResults: make(chan outlineResult, 8),
-		textResults:    make(chan textResult, 8),
-		imageIDs:       make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
+		outlineResults:        make(chan outlineResult, 8),
+		textResults:           make(chan textResult, 8),
+		pageWordsResults:      make(chan pageWordsResult, 8),
+		selectionImageResults: make(chan selectionImageResult, 8),
+		selectionMode:         opts.SelectionMode,
+		imageIDs:              make(map[cache.Key]*imageRecord), nextID: id, ctx: context.Background()}
+	if m.selectionMode == "" {
+		m.selectionMode = "text"
+	}
 	m.loadHistory()
 	return m
 }
@@ -255,6 +269,9 @@ func (m *model) invalidate() {
 
 func (m *model) deleteImage(k cache.Key) {
 	if r := m.imageIDs[k]; r != nil {
+		if r.original != nil {
+			m.noteOutput(m.images.Delete(r.original.id))
+		}
 		m.noteOutput(m.images.Delete(r.id))
 		delete(m.imageIDs, k)
 	}
@@ -284,13 +301,17 @@ func (m *model) image(k cache.Key, cached bool) *imageRecord {
 	if r := m.imageIDs[k]; r != nil {
 		return r
 	}
+	r := m.newImageRecord(cached)
+	m.imageIDs[k] = r
+	return r
+}
+
+func (m *model) newImageRecord(cached bool) *imageRecord {
 	// Monotonic allocation never reuses an ID while this process owns it.
 	id := m.nextID
 	m.nextID++
 	if m.nextID == 0 {
 		m.nextID = 1
 	}
-	r := &imageRecord{id: id, cached: cached}
-	m.imageIDs[k] = r
-	return r
+	return &imageRecord{id: id, cached: cached}
 }

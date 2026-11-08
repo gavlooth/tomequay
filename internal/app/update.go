@@ -41,6 +41,12 @@ func (m *model) key(k keys.Key) {
 		m.textKey(k)
 		return
 	}
+	if m.pageSelection != nil && m.decoder.Mode() == keys.Normal {
+		if m.pageSelectionKey(k) {
+			return
+		}
+		m.closePageSelection()
+	}
 	if m.help {
 		switch {
 		case k.Rune == 'j' || k.Special == keys.Down:
@@ -97,6 +103,15 @@ func (m *model) command(cmd keys.Command) {
 	defer m.recordHistory()
 	n := max(1, cmd.Count)
 	switch cmd.Action {
+	case keys.Select:
+		m.selectConfiguredText()
+		return
+	case keys.SelectPageText:
+		m.showPageSelection()
+		return
+	case keys.SetSelectionMode:
+		m.setSelectionMode(cmd.Text)
+		return
 	case keys.SelectText:
 		m.showText()
 		return
